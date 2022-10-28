@@ -132,3 +132,6 @@ dmypy.json
 optres/*
 data/*
 cache/*
+
+# No jetbrain please
+.idea/
