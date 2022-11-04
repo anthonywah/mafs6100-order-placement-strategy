@@ -25,10 +25,10 @@ def obj(pnl, t_exec, lmda=1, t_func=lambda x: x):
     return (lmda / t_func(t_exec)) + pnl
 
 
-def sim_one_day_t2(df: pd.DataFrame, stock_code:str, side: str, ts: int, tm: int, verbose=False, save=False, overwrite=False) -> pd.DataFrame:
+def sim_one_day_t2(date: str, stock_code:str, side: str, ts: int, tm: int, verbose=False, save=False, overwrite=False) -> pd.DataFrame:
     """ Simulate cases where we post an order when spread in tick = 2
 
-    :param df: dataframe from get_one_file, containing ony one day data
+    :param date: date to simulate on
     :param stock_code: stock code to simulate
     :param side: 'bid' or 'ask'
     :param ts: time to wait til crossing spread, in seconds
@@ -38,7 +38,12 @@ def sim_one_day_t2(df: pd.DataFrame, stock_code:str, side: str, ts: int, tm: int
     :return:
     """
     st = datetime.datetime.now()
-    date = df['date'].iloc[0]
+    cache_path = os.path.join(CACHE_DIR, stock_code, f'{date}.pkl')
+    try:
+        df = read_pkl_helper(cache_path)
+    except FileNotFoundError as e:
+        log_error(f'Cache does not exist: {cache_path}')
+        raise e
     save_path = os.path.join(OPTRES_DIR, f'stock_code={stock_code}', f'side={side}', f'ts={ts}', f'tm={tm}', f'{date}.csv')
     if save and os.path.exists(save_path) and not overwrite:
         return
@@ -226,8 +231,8 @@ def sim_main(stock_code, side, ts, tm, overwrite):
         if len(path_ls):
             log_info(f'{prefix} Simulation result exists')
             return
-    df_dict = get_one_stock_data(stock_code=stock_code, verbose=False, gb_days=True)
-    params_ls = [[one_df, stock_code, side, ts, tm, False, True, overwrite] for d, one_df in df_dict.items()]
+    date_ls = [i.replace('.pkl', '') for i in os.listdir(os.path.join(CACHE_DIR, stock_code))]
+    params_ls = [[d, stock_code, side, ts, tm, False, True, overwrite] for d in date_ls]
     pool_run_func(sim_one_day_t2, params_ls)
     log_info(f'{prefix} Done simulation on {len(params_ls)} days - {(datetime.datetime.now() - st).total_seconds():.2f}s')
     return

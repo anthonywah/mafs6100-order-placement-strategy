@@ -5,6 +5,11 @@ def opt_main(stock_code, side, ts_ls, tm_ls, overwrite=False):
     prefix = f'[{stock_code}-{side}-{overwrite}]'
     log_info(f'{prefix} Start optimization on {len(ts_ls) * len(tm_ls)} param sets')
     st = datetime.datetime.now()
+    cache_dir = os.path.join(CACHE_DIR, stock_code)
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
+        df_dict = get_one_stock_data(stock_code=stock_code, verbose=False, gb_days=True)
+        save_by_date_cache(stock_code=stock_code, df_dict=df_dict, verbose=True)
     for ts in ts_ls:
         for tm in tm_ls:
             if not (ts > 0 and ts >= tm >= 0):

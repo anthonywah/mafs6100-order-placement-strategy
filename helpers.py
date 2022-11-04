@@ -7,6 +7,7 @@ import logging
 import numpy as np
 from pytz import timezone, utc
 import multiprocessing as mp
+from contextlib import closing
 
 
 FORMAT_STR = "%(asctime)s.%(msecs)03d | {}%(levelname)-8s | %(filename)-20s:%(lineno)5s{} | %(message)s"
@@ -95,7 +96,7 @@ def get_cur_time_str():
 def pool_run_func(func, arg_ls):
     if type(arg_ls[0]) not in [list, tuple]:
         arg_ls = [[i] for i in arg_ls]
-    with mp.Pool(os.cpu_count() * 2) as p:
+    with closing(mp.Pool(int(os.cpu_count() / 2))) as p:
         res = p.starmap(func=func, iterable=arg_ls)
         p.terminate()
     return res

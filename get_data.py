@@ -21,17 +21,26 @@ def get_one_stock_data(stock_code: str, verbose=True, gb_days=False) -> pd.DataF
         Will look for available cache first
         Save a cache file under cache/ as <stock_code>.pkl
 
+    TODO from professor
+    - Vary lambda and observe it's relationship with the change in score
+    - Investigate distribution of TAKE cases
+    - Include std heatmap plot as well
+    - Take square root on execution time in the objective to mimic formulation of brownian motion
+
     :param stock_code: a string of stock code, e.g. 0050
     :param verbose:
     :param gb_days:
     :return: dataframe
     """
-    cache_path = os.path.join(CACHE_DIR, f'{stock_code}{"_gb" if gb_days else ""}.pkl')
+    cache_path = os.path.join(CACHE_DIR, f'{stock_code}.pkl')
     st = datetime.datetime.now()
     if os.path.exists(cache_path):
         res = read_pkl_helper(cache_path)
+        if gb_days:
+            res = {k: v.reset_index(drop=True) for k, v in res.groupby('date')}
         if verbose:
             log_info(f'Got cache at {cache_path} - {(datetime.datetime.now() - st).total_seconds():.2f}s')
+
     else:
         sub_dir = os.path.join(DATA_DIR, stock_code)
         ym_ls = [i.split('.')[0].split('_')[-1] for i in os.listdir(sub_dir)]
@@ -39,13 +48,34 @@ def get_one_stock_data(stock_code: str, verbose=True, gb_days=False) -> pd.DataF
         res = pd.concat(pool_run_func(get_one_file, params_ls)).reset_index(drop=True)
         if verbose:
             log_info(f'{sub_dir}/* - Got {len(res)} entries from {len(ym_ls)} files - {(datetime.datetime.now() - st).total_seconds():.2f}s')
+        save_pkl_helper(res, cache_path)
         if gb_days:
             res = {k: v.reset_index(drop=True) for k, v in res.groupby('date')}
         st = datetime.datetime.now()
-        save_pkl_helper(res, cache_path)
         if verbose:
             log_info(f'Saved cache at {cache_path} - {(datetime.datetime.now() - st).total_seconds():.2f}s')
     return res
+
+
+def save_by_date_cache(stock_code: str, df_dict: dict, verbose=True):
+    """ Take in a df_dict grouped by date, and save them to cache/stock_code/<DATE>.pkl
+
+    :param stock_code:
+    :param df_dict:
+    :param verbose:
+    :return:
+    """
+    for d, df in df_dict.items():
+        st = datetime.datetime.now()
+        cache_path = os.path.join(CACHE_DIR, stock_code, f'{d}.pkl')
+        if os.path.exists(cache_path):
+            if verbose:
+                log_info(f'Skipped existing cache {cache_path}')
+        else:
+            save_pkl_helper(df, cache_path)
+            if verbose:
+                log_info(f'Saved cache at {cache_path} - {(datetime.datetime.now() - st).total_seconds():.2f}s')
+    return
 
 
 def get_one_file(stock_code: str, year_month: str) -> pd.DataFrame:
