@@ -1,4 +1,5 @@
 from simulation import *
+import seaborn
 
 
 def opt_main(stock_code, side, ts_ls, tm_ls, overwrite=False):
@@ -20,12 +21,31 @@ def opt_main(stock_code, side, ts_ls, tm_ls, overwrite=False):
     return
 
 
-def get_sim_res(path_ls):
+def get_path_df(stock_code, side):
+    """ Get a dataframe of path of simulation result, w.r.t corresponding parameters
+
+    :param stock_code:
+    :param side:
+    :return:
+    """
+    file_ls = glob.glob(os.path.join(PROJECT_DIR, 'optres', f'stock_code={stock_code}', f'side={side}', '**', '*.*'),
+                        recursive=True)
+    file_split_ls = [(i, i.split('/')) for i in file_ls]
+    files_df = pd.DataFrame([[f_ls[6], f_ls[7], f_ls[8], f_ls[9], f] for f, f_ls in file_split_ls],
+                            columns=['stock_code', 'side', 'ts', 'tm', 'path'])
+    for i in files_df.columns[:-1]:
+        files_df.loc[:, i] = files_df[i].str.split('=', expand=True)[1]
+    return files_df
+
+
+def get_sim_res(path_ls, cond=None):
     """ Take in a list of simulation result paths, get simulation results
 
     :param path_ls:
+    :param cond: function to apply condition to filter dataframe
     :return:
     """
+
     full_res_path = [i for i in path_ls if 'full_res.pkl' in i]
     if len(full_res_path):
         df = read_pkl_helper(full_res_path[0])
@@ -34,7 +54,23 @@ def get_sim_res(path_ls):
         df = pd.concat(df_ls).reset_index(drop=True)
         save_pkl_helper(df, os.path.join(os.path.dirname(path_ls[0]), 'full_res.pkl'))
     df.loc[:, 'duration'] = df['duration'].replace(0, np.nan)
+    if cond:
+        df = df.loc[cond(df), :].reset_index(drop=True)
     return {'pnl': df['pnl'].values, 'duration': df['duration'].values}
+
+
+def plot_heatmap(stock_code, side, plot_attri, res_dict):
+    target_res_dict = {k: v for k, v in res_dict.items() if stock_code in k and side in k}
+    ts_ls = sorted(list(set([int(i[2]) for i in target_res_dict.keys()])))
+    tm_ls = sorted(list(set([int(i[3]) for i in target_res_dict.keys()])))
+    matrix_df = pd.DataFrame(np.nan, index=[f'ts={i}' for i in ts_ls], columns=[f'tm={i}' for i in tm_ls])
+    for k, v in target_res_dict.items():
+        matrix_df.loc[f'ts={k[2]}', f'tm={k[3]}'] = v[plot_attri]
+    fig, ax = plt.subplots(figsize=(22, 10))
+    sns.heatmap(matrix_df, ax=ax, annot=True, fmt='.2g', annot_kws={"fontsize": 8})
+    ax.set_title(f'{stock_code} - {side} - {plot_attri}')
+    plt.show()
+    return
 
 
 if __name__ == '__main__':
