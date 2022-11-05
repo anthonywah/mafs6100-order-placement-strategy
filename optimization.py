@@ -21,15 +21,12 @@ def opt_main(stock_code, side, ts_ls, tm_ls, overwrite=False):
     return
 
 
-def get_path_df(stock_code, side):
+def get_path_df():
     """ Get a dataframe of path of simulation result, w.r.t corresponding parameters
 
-    :param stock_code:
-    :param side:
     :return:
     """
-    file_ls = glob.glob(os.path.join(PROJECT_DIR, 'optres', f'stock_code={stock_code}', f'side={side}', '**', '*.*'),
-                        recursive=True)
+    file_ls = glob.glob(os.path.join(PROJECT_DIR, 'optres', '**', '*.*'), recursive=True)
     file_split_ls = [(i, i.split('/')) for i in file_ls]
     files_df = pd.DataFrame([[f_ls[6], f_ls[7], f_ls[8], f_ls[9], f] for f, f_ls in file_split_ls],
                             columns=['stock_code', 'side', 'ts', 'tm', 'path'])
@@ -59,16 +56,38 @@ def get_sim_res(path_ls, cond=None):
     return {'pnl': df['pnl'].values, 'duration': df['duration'].values}
 
 
-def plot_heatmap(stock_code, side, plot_attri, res_dict):
-    target_res_dict = {k: v for k, v in res_dict.items() if stock_code in k and side in k}
-    ts_ls = sorted(list(set([int(i[2]) for i in target_res_dict.keys()])))
-    tm_ls = sorted(list(set([int(i[3]) for i in target_res_dict.keys()])))
-    matrix_df = pd.DataFrame(np.nan, index=[f'ts={i}' for i in ts_ls], columns=[f'tm={i}' for i in tm_ls])
-    for k, v in target_res_dict.items():
-        matrix_df.loc[f'ts={k[2]}', f'tm={k[3]}'] = v[plot_attri]
-    fig, ax = plt.subplots(figsize=(22, 10))
-    sns.heatmap(matrix_df, ax=ax, annot=True, fmt='.2g', annot_kws={"fontsize": 8})
-    ax.set_title(f'{stock_code} - {side} - {plot_attri}')
+def plot_heatmap(stock_code_ls, side_ls, plot_attri_ls, res_dict):
+    """
+
+    :param stock_code_ls:
+    :param side_ls:
+    :param plot_attri_ls:
+    :param res_dict:
+    :return:
+    """
+    col_len, row_len = len(stock_code_ls), len(side_ls) * len(plot_attri_ls)
+    fig, axs = plt.subplots(figsize=(16 * col_len, 8 * row_len), ncols=col_len, nrows=row_len)
+    for i_sc, stock_code in enumerate(stock_code_ls):
+        for i_s, side in enumerate(side_ls):
+            for i_p, plot_attri in enumerate(plot_attri_ls):
+                log_info(f'Plotting {stock_code} - {side} - {plot_attri}')
+                if len(stock_code_ls) > 1:
+                    ax = axs[(i_s * len(plot_attri_ls)) + i_p, i_sc]
+                elif len(side_ls) * len(plot_attri_ls) > 1:
+                    ax = axs[(i_s * len(plot_attri_ls)) + i_p]
+                else:
+                    ax = axs
+                target_res_dict = {k: v for k, v in res_dict.items() if stock_code in k and side in k}
+                ts_ls = sorted(list(set([int(i[2]) for i in target_res_dict.keys()])))
+                tm_ls = sorted(list(set([int(i[3]) for i in target_res_dict.keys()])))
+                matrix_df = pd.DataFrame(np.nan, index=ts_ls, columns=tm_ls)
+                for k, v in target_res_dict.items():
+                    matrix_df.loc[int(k[2]), int(k[3])] = v[plot_attri]
+                sns.heatmap(matrix_df.loc[ts_ls, tm_ls], ax=ax, annot=True, fmt='.2g', annot_kws={"fontsize": 8})
+                ax.set_xlabel('tm', fontsize=10)
+                ax.set_ylabel('ts', fontsize=10)
+                ax.set_title(f'{stock_code} - {side} - {plot_attri}', fontsize=10)
+    fig.tight_layout()
     plt.show()
     return
 
