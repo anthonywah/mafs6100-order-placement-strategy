@@ -1,5 +1,5 @@
 from simulation import *
-import seaborn
+import seaborn as sns
 
 
 def opt_main(stock_code, side, ts_ls, tm_ls, overwrite=False):
