@@ -9,7 +9,8 @@ from argparse import ArgumentParser
 PLOT_CASE_LABEL = {
     'REP': 'Replaced Order Fill',
     'INIT': 'Initial Order Fill',
-    'TAKE': 'Timeout Take'
+    'TAKE': 'Timeout Take',
+    'EOQREP': 'Replaced Order Fill (End of Queue)'
 }
 
 
@@ -23,6 +24,18 @@ def obj(pnl, t_exec, lmda=1, t_func=lambda x: x):
     :return:
     """
     return (lmda / t_func(t_exec)) + pnl
+
+
+def obj2(pnl, t_exec, lmda=1, t_func=lambda x: x):
+    """ Objective function for measuring the spread narrowing strategy - score = pnl - (lmda * t_func(t_exec))
+
+    :param pnl: pnl against prevailing mid quote, in bps
+    :param t_exec: execution time in millisecond
+    :param lmda: Scaling factor
+    :param t_func: Transformation function on t_exec
+    :return:
+    """
+    return pnl - (lmda * t_func(t_exec))
 
 
 def sim_one_day_t2(date: str, stock_code:str, side: str, ts: int, tm: int, verbose=False, save=False, overwrite=False) -> pd.DataFrame:
@@ -52,14 +65,14 @@ def sim_one_day_t2(date: str, stock_code:str, side: str, ts: int, tm: int, verbo
     side_coef = -1 if side == 'bid' else 1
     make_p_col = 'BP1' if side == 'bid' else 'SP1'
     take_p_col = 'SP1' if side == 'bid' else 'BP1'
-    prev_take_p, prev_dur = None, None
-    col_ls = ['date', 'make_price', 'fill_price', 'case', 'duration', 'pnl', 'start_ts', 'start_index', 'start_price',
+    prev_bid, prev_ask, prev_make_p, prev_take_p, prev_dur = None, None, None, None, None
+    col_ls = ['date', 'make_price', 'fill_price', 'case', 'eoq_rep', 'duration', 'pnl', 'start_ts', 'start_index', 'start_price',
               'start_bid', 'start_ask', 'replace_ts', 'replace_index', 'replace_p', 'replace_bid', 'replace_ask',
               'fill_ts', 'fill_index', 'fill_bid', 'fill_ask']
 
     # Reset variables for one order
     s_ms, s_bid, s_ask, r_ms, r_bid, r_ask, f_ms, f_bid, f_ask, s_mid = 0, 0., 0., 0, 0., 0., 0, 0., 0., 0.
-    w_r, fill, rep, dur, case, s_p, m_p, r_p, f_p, pnl, s_i, r_i, f_i = False, False, False, 0, '', 0., 0., 0., 0., 0., -1, -1, -1
+    eoq, w_r, fill, rep, dur, case, s_p, m_p, r_p, f_p, pnl, s_i, r_i, f_i = False, False, False, False, 0, '', 0., 0., 0., 0., 0., -1, -1, -1
 
     iter_obj = df.iterrows() if not verbose else tqdm.tqdm(df.iterrows(), desc=f'{date}:Simulation', ncols=200, total=len(df))
     for i, i_row in iter_obj:
@@ -75,20 +88,21 @@ def sim_one_day_t2(date: str, stock_code:str, side: str, ts: int, tm: int, verbo
 
             if dur >= ts_ms:
                 # 1. Time exceed t_star and cross spread
+                f_p, f_ms = (prev_take_p if dur > ts_ms else i_row[take_p_col]), s_ms + ts_ms
                 dur = ts_ms
-                f_p, f_ms = i_row[take_p_col], s_ms + ts_ms
                 case, fill = 'TAKE', True
 
             elif rep:
-                if (side_coef * (i_row['lastPx'] - m_p)) >= 0 or (side_coef * (i_row[take_p_col] - m_p)) >= 0:
-                    # 2. Replaced order filled by either 1 tick narrower of opposite side or trade update at my price
-                    f_p, f_ms = m_p, i_row['dt_ms']
-                    case, fill = 'REP', True
-
-            elif side_coef * (m_p - i_row[make_p_col]) > 0:
-                # Cancel order (take precedence over replacing order after waiting to erase uncertainty)
-                s_ms, s_bid, s_ask, r_ms, r_bid, r_ask, f_ms, f_bid, f_ask, s_mid = 0, 0., 0., 0, 0., 0., 0, 0., 0., 0.
-                w_r, fill, rep, dur, case, s_p, m_p, r_p, f_p, pnl, s_i, r_i, f_i = False, False, False, 0, '', 0., 0., 0., 0., 0., -1, -1, -1
+                if not eoq:
+                    if (side_coef * (i_row['lastPx'] - m_p)) >= 0 or (side_coef * (i_row[take_p_col] - m_p)) >= 0:
+                        # 2. Replaced order filled by opposite side cross my price or trade update at my price
+                        f_p, f_ms = m_p, i_row['dt_ms']
+                        case, fill = 'REP', True
+                else:
+                    # 4. Replaced order at eoq filled by opposite side cross my price or trade update at 1 + my price
+                    if (side_coef * (i_row['lastPx'] - m_p)) > 0 or (side_coef * (i_row[take_p_col] - m_p)) >= 0:
+                        f_p, f_ms = m_p, i_row['dt_ms']
+                        case, fill = 'EOQREP', True
 
             elif dur >= tm_ms:
                 # Replace order
@@ -98,6 +112,8 @@ def sim_one_day_t2(date: str, stock_code:str, side: str, ts: int, tm: int, verbo
                     r_i, rep = i, True
                     if w_r:
                         r_ms = i_row['dt_ms']
+                    if side_coef * (s_p - (prev_make_p if dur > tm_ms else i_row[make_p_col])) > 0:
+                        eoq = True
                 else:
                     w_r = True
 
@@ -109,9 +125,11 @@ def sim_one_day_t2(date: str, stock_code:str, side: str, ts: int, tm: int, verbo
             # Append result and reset
             if fill:
                 f_i, f_bid, f_ask, pnl = i, i_row['BP1'], i_row['SP1'], side_coef * 10000 * (f_p - s_mid) / s_mid
-                res.append([date, m_p, f_p, case, dur, pnl, s_ms, s_i, s_p, s_bid, s_ask, r_ms, r_i, r_p, r_bid, r_ask, f_ms, f_i, f_bid, f_ask])
+                if case == 'TAKE' and i_row['dt_ms'] - s_ms > ts_ms:
+                    f_bid, f_ask = prev_bid, prev_ask
+                res.append([date, m_p, f_p, case, eoq, dur, pnl, s_ms, s_i, s_p, s_bid, s_ask, r_ms, r_i, r_p, r_bid, r_ask, f_ms, f_i, f_bid, f_ask])
                 s_ms, s_bid, s_ask, r_ms, r_bid, r_ask, f_ms, f_bid, f_ask, s_mid = 0, 0., 0., 0, 0., 0., 0, 0., 0., 0.
-                w_r, fill, rep, dur, case, s_p, m_p, r_p, f_p, pnl, s_i, r_i, f_i = False, False, False, 0, '', 0., 0., 0., 0., 0., -1, -1, -1
+                eoq, w_r, fill, rep, dur, case, s_p, m_p, r_p, f_p, pnl, s_i, r_i, f_i = False, False, False, False, 0, '', 0., 0., 0., 0., 0., -1, -1, -1
 
         # No ongoing round - check if need to start a new round
         elif i_row['spread_in_tick'] == 2:
@@ -119,7 +137,7 @@ def sim_one_day_t2(date: str, stock_code:str, side: str, ts: int, tm: int, verbo
             s_i, m_p, s_mid = i, i_row[make_p_col], i_row['mid']
 
         # buffer for new updates
-        prev_take_p, prev_dur = i_row[take_p_col], dur
+        prev_bid, prev_ask, prev_make_p, prev_take_p, prev_dur = i_row['BP1'], i_row['SP1'], i_row[make_p_col], i_row[take_p_col], dur
 
     res_df = pd.DataFrame(res, columns=col_ls)
     if not save:
@@ -145,11 +163,12 @@ def plot_one_sim(day_df: pd.DataFrame, ts: int, tm: int, side: str, row: pd.Seri
     :param row: pandas series storing one simulation result
     :return:
     """
-    date, m_p, f_p, case, dur, pnl, s_ms, s_i, s_p, s_bid, s_ask, r_ms, r_i, r_p, r_bid, r_ask, f_ms, f_i, f_bid, f_ask = row
+    date, m_p, f_p, case, eoq_rep, dur, pnl, s_ms, s_i, s_p, s_bid, s_ask, r_ms, r_i, r_p, r_bid, r_ask, f_ms, f_i, f_bid, f_ask = row
     sdf = day_df.loc[max(s_i - 10, 0):min(f_i + 10, day_df.shape[0] - 1), :].copy()
     sdf = sdf[[i for i in sdf.columns if not (i[0] in ['B', 'S'] and i not in ['BP1', 'SP1'])]]
     sdf.loc[:, 'order_price'] = np.nan
     sdf.loc[s_i, 'order_price'] = s_p
+    sdf.loc[:, 'sim_row'] = False
     if r_i > 0:
         if r_ms != sdf.loc[r_i, 'dt_ms']:
             sdf = insert_new_row(orig_df=sdf, new_ms=r_ms, new_i=r_i, new_p=r_p)
@@ -181,7 +200,7 @@ def plot_one_sim(day_df: pd.DataFrame, ts: int, tm: int, side: str, row: pd.Seri
         ax.axvline(ts * 1e3 + s_t, color='violet')
     ax.axhline((s_bid + s_ask) / 2, linestyle='--', color='red', alpha=0.5, label='Prevailing Mid')
     ax.grid(True, alpha=0.5)
-    ax.set_title(f'Side={side}; Case={case}; Duration={dur:.2f}ms; Make={m_p:.2f}; Fill={f_p:.2f}; PnL={pnl:.2f}bps', fontsize=16)
+    ax.set_title(f'Side={side}; Case={case}; ReplacedEOQ={eoq_rep}; Duration={dur:.2f}ms; Make={m_p:.2f}; Fill={f_p:.2f}; PnL={pnl:.2f}bps', fontsize=16)
     ax.legend()
     fig.tight_layout()
     plt.show()
@@ -203,7 +222,7 @@ def insert_new_row(orig_df, new_ms, new_i, new_p):
     d.update({
         'lastPx': np.nan, 'size': np.nan, 'dt_ms': new_ms, 'dt': f_dt, 'order_price': new_p,
         'dt_str': f_dt.strftime('%Y-%m-%d %H:%M:%S.%f'), 'dt_time_str': f_dt.strftime('%H:%M:%S.%f'),
-        'time': int(f_dt.strftime('%-H%M%S%f')[:-3])
+        'time': int(f_dt.strftime('%-H%M%S%f')[:-3]), 'sim_row': True
     })
     d_df = pd.DataFrame(d, index=[new_i])
     df = pd.concat([orig_df.loc[:(new_i - 1)], d_df, orig_df.loc[new_i:]]).reset_index(drop=True)
