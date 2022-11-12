@@ -66,7 +66,7 @@ def plot_heatmap(stock_code_ls, side_ls, plot_attri_ls, res_dict):
     :return:
     """
     col_len, row_len = len(stock_code_ls), len(side_ls) * len(plot_attri_ls)
-    fig, axs = plt.subplots(figsize=(16 * col_len, 8 * row_len), ncols=col_len, nrows=row_len)
+    fig, axs = plt.subplots(figsize=(26 * col_len, 12 * row_len), ncols=col_len, nrows=row_len)
     for i_sc, stock_code in enumerate(stock_code_ls):
         for i_s, side in enumerate(side_ls):
             for i_p, plot_attri in enumerate(plot_attri_ls):
@@ -84,9 +84,9 @@ def plot_heatmap(stock_code_ls, side_ls, plot_attri_ls, res_dict):
                 for k, v in target_res_dict.items():
                     matrix_df.loc[int(k[2]), int(k[3])] = v[plot_attri]
                 sns.heatmap(matrix_df.loc[ts_ls, tm_ls], ax=ax, annot=True, fmt='.2g', annot_kws={"fontsize": 8})
-                ax.set_xlabel('tm', fontsize=10)
-                ax.set_ylabel('ts', fontsize=10)
-                ax.set_title(f'{stock_code} - {side} - {plot_attri}', fontsize=10)
+                ax.set_xlabel('tm', fontsize=12)
+                ax.set_ylabel('ts', fontsize=12)
+                ax.set_title(f'{stock_code} - {side} - {plot_attri}', fontsize=16)
     fig.tight_layout()
     plt.show()
     return
