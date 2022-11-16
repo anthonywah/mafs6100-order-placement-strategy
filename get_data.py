@@ -21,12 +21,6 @@ def get_one_stock_data(stock_code: str, verbose=True, gb_days=False) -> pd.DataF
         Will look for available cache first
         Save a cache file under cache/ as <stock_code>.pkl
 
-    TODO from professor
-    - Vary lambda and observe it's relationship with the change in score
-    - DONE Investigate distribution of TAKE cases
-    - DONE Include std heatmap plot as well
-    - DONE Take square root on execution time in the objective to mimic formulation of brownian motion
-
     :param stock_code: a string of stock code, e.g. 0050
     :param verbose:
     :param gb_days:
