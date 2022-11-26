@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 from get_data import *
 import tqdm
 import glob
@@ -10,37 +11,39 @@ class FlashOrderCalculator:
     def __init__(self, stock_code: str):
         """ Get a quotes df from and then compute fleeting quotes attributions:
 
-            - Flash order spectrum (Freq plot by time)
-            - Size of flash orders
-            - Cluster of flash orders
-            - Bid/Ask flash orders discrepancy
-            - Intra-day pattern of flash orders
-            - Success rate of flash orders (Should be higher than Ashare/US market)
+            - DONE - Flash order spectrum (Freq plot by time)
+            - DONE - Size of flash orders
+            - HALF DONE - Cluster of flash orders
+            - NOT YET - Bid/Ask flash orders discrepancy
+            - DONE - Intra-day pattern of flash orders
+            - NOT YET - Success rate of flash orders (Should be higher than Ashare/US market)
 
         :param stock_code: target stock to work on
         """
         self.data_gb = get_one_stock_data(stock_code=stock_code, verbose=True, gb_days=True)
         self.fod = {}  # flash order dict
 
-    def classify(self, max_dur_ms: int = 100):
+    def classify(self, max_dur_ms: int = 100, trick_trade_thres_ms: int = 100):
         """ classify quote updates over the day, to look for flash orders
 
-        :param max_dur_ms: Maximum duration allowed for the flash quotes
+        :param max_dur_ms: Maximum duration allowed for the flash quotes, ms
+        :param trick_trade_thres_ms: Maximum time in ms to count a trade that is tricked by the flash order
         :return:
         """
         one_fod = []
         for d, df in tqdm.tqdm(self.data_gb.items(), desc='ClassifyingFlashOrder', ncols=200, total=len(self.data_gb)):
 
+            # Find improved and worsened cases to be considered
             bid_improved_ind = df.loc[(df['BP1'].diff() > 0) & (df['BP1'] > 0) & (df['BP1'].shift() > 0)].index.tolist()
             bid_worsened_ind = df.loc[(df['BP1'].diff() < 0) & (df['BP1'] > 0) & (df['BP1'].shift() > 0)].index.tolist()
             ask_improved_ind = df.loc[(df['SP1'].diff() < 0) & (df['SP1'] > 0) & (df['SP1'].shift() > 0)].index.tolist()
             ask_worsened_ind = df.loc[(df['SP1'].diff() > 0) & (df['SP1'] > 0) & (df['SP1'].shift() > 0)].index.tolist()
+            bid_improved_ind_end = np.searchsorted(df['dt_ms'], df.loc[bid_improved_ind, 'dt_ms'] + max_dur_ms) - 1
+            ask_improved_ind_end = np.searchsorted(df['dt_ms'], df.loc[ask_improved_ind, 'dt_ms'] + max_dur_ms) - 1
+            bid_search_sec = zip(bid_improved_ind, bid_improved_ind_end, ['bid'] * len(bid_improved_ind))
+            ask_search_sec = zip(ask_improved_ind, ask_improved_ind_end, ['ask'] * len(ask_improved_ind))
 
-            # Flash bid order
-            bid_improved_ind_end = np.searchsorted(df['dt_ms'], df.loc[bid_improved_ind, 'dt_ms'] + max_dur_ms)
-            ask_improved_ind_end = np.searchsorted(df['dt_ms'], df.loc[ask_improved_ind, 'dt_ms'] + max_dur_ms)
-            bid_search_sec = zip(bid_improved_ind, [i - 1 for i in bid_improved_ind_end], ['bid'] * len(bid_improved_ind))
-            ask_search_sec = zip(ask_improved_ind, [i - 1 for i in ask_improved_ind_end], ['ask'] * len(ask_improved_ind))
+            one_day_fod = []
             for i_start, i_end, i_case in list(bid_search_sec) + list(ask_search_sec):
 
                 # No updates within duration
@@ -70,7 +73,7 @@ class FlashOrderCalculator:
                 # Here assumed the qty at i_start is the flash order quantity
                 qty = df.at[i_start, v1_col]
 
-                one_fod.append({
+                one_day_fod.append({
                     'date': d,
                     'side': i_case,
                     'start': df.at[i_start, 'dt'],
@@ -82,32 +85,75 @@ class FlashOrderCalculator:
                     'duration': df.at[fo_end_ind, 'dt_ms'] - df.at[i_start, 'dt_ms'],
                     'orig_price': orig_price,
                     'fo_price': fo_price,
-                    'fo_qty': qty
+                    'fo_qty': qty,
+                    'tricked_trade': False,
+                    'tricked': np.nan,
+                    'tricked_index': np.nan,
+                    'tricked_ms': np.nan,
+                    'tricked_price': np.nan,
+                    'tricked_qty': np.nan,
+                    'tricked_ms_taken': np.nan
                 })
+
+            # Look for tricked trades
+            check_end_ind = np.searchsorted(df['dt_ms'], [i['end_ms'] + trick_trade_thres_ms for i in one_day_fod]) - 1
+            for ind, i_fo in zip(check_end_ind, one_day_fod):
+                check_df = df.loc[i_fo['end_index']:ind]
+                if check_df['lastPx'].isna().all():
+                    continue
+                check_col = 'BP1' if i_fo['side'] == 'bid' else 'SP1'
+                check_sign = 1 if check_col == 'BP1' else -1
+                # check_price = (((check_df[check_col] - check_df['lastPx']) * check_sign) >= 0) & (check_df[check_col] > 0)
+                check_price = ((check_df['lastPx'] - i_fo['orig_price']) * check_sign) <= 0
+                if not check_price.any():
+                    continue
+                tricked_ind = check_df.loc[check_price].index.tolist()[0]
+                i_fo.update({
+                    'tricked_trade': True,
+                    'tricked': check_df.loc[tricked_ind, 'dt'],
+                    'tricked_index': tricked_ind,
+                    'tricked_ms': check_df.loc[tricked_ind, 'dt_ms'],
+                    'tricked_price': check_df.loc[tricked_ind, 'lastPx'],
+                    'tricked_qty': check_df.loc[tricked_ind, 'size'],
+                    'tricked_ms_taken': check_df.loc[tricked_ind, 'dt_ms'] - i_fo['end_ms']
+                })
+            one_fod += one_day_fod
+        for i, i_fo in enumerate(one_fod):
+            i_fo.update({'case_index': i})
         self.fod[max_dur_ms] = one_fod
         return
 
+    def classify_spectrum(self, dur_start, dur_step, dur_end):
+        dur_ls = range(dur_start, dur_end + 1, dur_step)
+        for dur in dur_ls:
+            log_info(f'Classifying flash orders of duration < {dur} ms')
+            self.classify(max_dur_ms=dur)
+        return
 
-def plot_quote(quotes, index_time):
-    fig, ax = plt.subplots(figsize=(16, 8))
-    ax.plot(quotes['dt'], quotes['BP1'], color='gray', drawstyle='steps-post')
-    ax.plot(quotes['dt'], quotes['SP1'], color='gray', drawstyle='steps-post')
-    ax.axvline(index_time, color='violet')
-    ax.scatter(quotes['dt'], quotes['lastPx'], color='blue', label='Market Trades', alpha=0.7, s=80, marker='D')
-    ax.legend(loc='upper right')
-    plt.show()
-    return
+    def get_by_day_fo(self, duration):
+        return {[i for i in self.fod[duration] if i['date'] == d] for d in self.data_gb.groups.keys()}
 
+    def get_by_side_fo(self, duration):
+        return {[i for i in self.fod[duration] if i['side'] == s] for s in ['bid', 'ask']}
 
-# for case_ind in range(a.fod[100].__len__()):
-#     case = a.fod[100][case_ind]
-#     if case['date'] > '2022-01-10':
-#         break
-#     df = a.data_gb[case['date']]
-#
-#     slice_df = df.loc[case['start_index'] - 5:case['end_index'] + 5, :]
-#     slice_df = slice_df.loc[(slice_df['BP1'] > 0) & (slice_df['SP1'] > 0), :]
-#     slice_ind_time = df.loc[case['start_index'] - 1, 'dt']
-#     plot_quote(slice_df, index_time=slice_ind_time)
-#     print(case['date'], case['start_index'])
+    def plot_quote(self, duration, case_index):
+        case = self.fod[duration][case_index]
+        df = self.data_gb[case['date']]
+        end_ind = case['end_index'] if not case['tricked_trade'] else case['tricked_index']
+        slice_df = df.loc[case['start_index'] - 5:end_ind + 5, :]
+        slice_df = slice_df.loc[(slice_df['BP1'] > 0) & (slice_df['SP1'] > 0), :]
 
+        # Start plotting
+        fig, ax = plt.subplots(figsize=(16, 8))
+        ax.plot(slice_df['dt'], slice_df['BP1'], color='gray', drawstyle='steps-post')
+        ax.plot(slice_df['dt'], slice_df['SP1'], color='gray', drawstyle='steps-post')
+        ax.axvline(slice_df.at[case['start_index'], 'dt'])
+        ax.scatter(slice_df['dt'], slice_df['lastPx'], color='blue', label='Market Trades', alpha=0.5, s=40, marker='D')
+        if case['tricked_trade']:
+            row = slice_df.loc[case['tricked_index']]
+            ax.scatter([row['dt']], [row['lastPx']], color='red', label='Tricked Trade', alpha=0.8, s=80, marker='D')
+        ax.legend(loc='upper right')
+        ax.set_title(f'{case["date"]} {case["side"]} duration={case["duration"]}ms tricked={case["tricked_trade"]}', fontsize=14)
+        fig.tight_layout()
+        plt.show()
+        return
