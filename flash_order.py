@@ -103,7 +103,6 @@ class FlashOrderCalculator:
                     continue
                 check_col = 'BP1' if i_fo['side'] == 'bid' else 'SP1'
                 check_sign = 1 if check_col == 'BP1' else -1
-                # check_price = (((check_df[check_col] - check_df['lastPx']) * check_sign) >= 0) & (check_df[check_col] > 0)
                 check_price = ((check_df['lastPx'] - i_fo['orig_price']) * check_sign) <= 0
                 if not check_price.any():
                     continue
