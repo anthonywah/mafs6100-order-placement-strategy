@@ -16,7 +16,7 @@ class FlashOrderCalculator:
             - HALF DONE - Cluster of flash orders
             - NOT YET - Bid/Ask flash orders discrepancy
             - DONE - Intra-day pattern of flash orders
-            - NOT YET - Success rate of flash orders (Should be higher than Ashare/US market)
+            - DONE - Success rate of flash orders (Should be higher than Ashare/US market)
 
         :param stock_code: target stock to work on
         """
