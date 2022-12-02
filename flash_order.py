@@ -92,7 +92,14 @@ class FlashOrderCalculator:
                     'tricked_ms': np.nan,
                     'tricked_price': np.nan,
                     'tricked_qty': np.nan,
-                    'tricked_ms_taken': np.nan
+                    'tricked_ms_taken': np.nan,
+                    'opp_tricked_trade': False,
+                    'opp_tricked': np.nan,
+                    'opp_tricked_index': np.nan,
+                    'opp_tricked_ms': np.nan,
+                    'opp_tricked_price': np.nan,
+                    'opp_tricked_qty': np.nan,
+                    'opp_tricked_ms_taken': np.nan
                 })
 
             # Look for tricked trades
@@ -104,18 +111,29 @@ class FlashOrderCalculator:
                 check_col = 'BP1' if i_fo['side'] == 'bid' else 'SP1'
                 check_sign = 1 if check_col == 'BP1' else -1
                 check_price = ((check_df['lastPx'] - i_fo['orig_price']) * check_sign) <= 0
-                if not check_price.any():
-                    continue
-                tricked_ind = check_df.loc[check_price].index.tolist()[0]
-                i_fo.update({
-                    'tricked_trade': True,
-                    'tricked': check_df.loc[tricked_ind, 'dt'],
-                    'tricked_index': tricked_ind,
-                    'tricked_ms': check_df.loc[tricked_ind, 'dt_ms'],
-                    'tricked_price': check_df.loc[tricked_ind, 'lastPx'],
-                    'tricked_qty': check_df.loc[tricked_ind, 'size'],
-                    'tricked_ms_taken': check_df.loc[tricked_ind, 'dt_ms'] - i_fo['end_ms']
-                })
+                check_opp_price = ((check_df['lastPx'] - i_fo['orig_price']) * check_sign) > 0
+                if check_price.any():
+                    tricked_ind = check_df.loc[check_price].index.tolist()[0]
+                    i_fo.update({
+                        'tricked_trade': True,
+                        'tricked': check_df.loc[tricked_ind, 'dt'],
+                        'tricked_index': tricked_ind,
+                        'tricked_ms': check_df.loc[tricked_ind, 'dt_ms'],
+                        'tricked_price': check_df.loc[tricked_ind, 'lastPx'],
+                        'tricked_qty': check_df.loc[tricked_ind, 'size'],
+                        'tricked_ms_taken': check_df.loc[tricked_ind, 'dt_ms'] - i_fo['end_ms']
+                    })
+                if check_opp_price.any():
+                    opp_tricked_ind = check_df.loc[check_opp_price].index.tolist()[0]
+                    i_fo.update({
+                        'opp_tricked_trade': True,
+                        'opp_tricked': check_df.loc[opp_tricked_ind, 'dt'],
+                        'opp_tricked_index': opp_tricked_ind,
+                        'opp_tricked_ms': check_df.loc[opp_tricked_ind, 'dt_ms'],
+                        'opp_tricked_price': check_df.loc[opp_tricked_ind, 'lastPx'],
+                        'opp_tricked_qty': check_df.loc[opp_tricked_ind, 'size'],
+                        'opp_tricked_ms_taken': check_df.loc[opp_tricked_ind, 'dt_ms'] - i_fo['end_ms']
+                    })
             one_fod += one_day_fod
         for i, i_fo in enumerate(one_fod):
             i_fo.update({'case_index': i})
