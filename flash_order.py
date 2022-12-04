@@ -30,6 +30,10 @@ class FlashOrderCalculator:
         :param trick_trade_thres_ms: Maximum time in ms to count a trade that is tricked by the flash order
         :return:
         """
+        key = f'[{max_dur_ms}|{trick_trade_thres_ms}]'
+        if key in self.fod.keys():
+            log_info(f'Classification of {key} done already')
+            return
         one_fod = []
         for d, df in tqdm.tqdm(self.data_gb.items(), desc='ClassifyingFlashOrder', ncols=200, total=len(self.data_gb)):
 
@@ -137,7 +141,7 @@ class FlashOrderCalculator:
             one_fod += one_day_fod
         for i, i_fo in enumerate(one_fod):
             i_fo.update({'case_index': i})
-        self.fod[max_dur_ms] = one_fod
+        self.fod[key] = one_fod
         return
 
     def classify_spectrum(self, dur_start, dur_step, dur_end):
@@ -169,6 +173,9 @@ class FlashOrderCalculator:
         if case['tricked_trade']:
             row = slice_df.loc[case['tricked_index']]
             ax.scatter([row['dt']], [row['lastPx']], color='red', label='Tricked Trade', alpha=0.8, s=80, marker='D')
+        if case['opp_tricked_trade']:
+            row = slice_df.loc[case['opp_tricked_index']]
+            ax.scatter([row['dt']], [row['lastPx']], color='violet', label='Opposite Tricked Trade', alpha=0.8, s=80, marker='D')
         ax.legend(loc='upper right')
         ax.set_title(f'{case["date"]} {case["side"]} duration={case["duration"]}ms tricked={case["tricked_trade"]}', fontsize=14)
         fig.tight_layout()
