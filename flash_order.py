@@ -161,8 +161,11 @@ class FlashOrderCalculator:
         case = self.fod[duration][case_index]
         df = self.data_gb[case['date']]
         end_ind = case['end_index'] if not case['tricked_trade'] else case['tricked_index']
-        slice_df = df.loc[case['start_index'] - 5:end_ind + 5, :]
-        slice_df = slice_df.loc[(slice_df['BP1'] > 0) & (slice_df['SP1'] > 0), :]
+        end_ind = max(end_ind, -1 if not case['opp_tricked_trade'] else case['opp_tricked_index'])
+        slice_df = df.loc[case['start_index'] - 5:end_ind + 5, :].copy()
+        slice_df.loc[:, 'BP1'] = slice_df['BP1'].replace(0, np.nan).fillna(method='ffill')
+        slice_df.loc[:, 'SP1'] = slice_df['SP1'].replace(0, np.nan).fillna(method='ffill')
+        # slice_df = slice_df.loc[(slice_df['BP1'] > 0) & (slice_df['SP1'] > 0), :]
 
         # Start plotting
         fig, ax = plt.subplots(figsize=(16, 8))
