@@ -30,10 +30,13 @@ class FlashOrderCalculator:
         :param trick_trade_thres_ms: Maximum time in ms to count a trade that is tricked by the flash order
         :return:
         """
-        key = f'[{max_dur_ms}|{trick_trade_thres_ms}]'
-        if key in self.fod.keys():
-            log_info(f'Classification of {key} done already')
-            return
+        if max_dur_ms in self.fod.keys():
+            if trick_trade_thres_ms in self.fod[max_dur_ms].keys():
+                log_info(f'Classification of max_dur_ms={max_dur_ms} & trick_trade_thres_ms={trick_trade_thres_ms} done already')
+                return
+        else:
+            self.fod[max_dur_ms] = {}
+
         one_fod = []
         for d, df in tqdm.tqdm(self.data_gb.items(), desc='ClassifyingFlashOrder', ncols=200, total=len(self.data_gb)):
 
@@ -141,7 +144,7 @@ class FlashOrderCalculator:
             one_fod += one_day_fod
         for i, i_fo in enumerate(one_fod):
             i_fo.update({'case_index': i})
-        self.fod[key] = one_fod
+        self.fod[max_dur_ms][trick_trade_thres_ms] = one_fod
         return
 
     def classify_spectrum(self, dur_start, dur_step, dur_end):
@@ -157,8 +160,8 @@ class FlashOrderCalculator:
     def get_by_side_fo(self, duration):
         return {[i for i in self.fod[duration] if i['side'] == s] for s in ['bid', 'ask']}
 
-    def plot_quote(self, duration, case_index):
-        case = self.fod[duration][case_index]
+    def plot_quote(self, max_dur, trick_thres, case_index):
+        case = self.fod[max_dur][trick_thres][case_index]
         df = self.data_gb[case['date']]
         end_ind = case['end_index'] if not case['tricked_trade'] else case['tricked_index']
         end_ind = max(end_ind, -1 if not case['opp_tricked_trade'] else case['opp_tricked_index'])
