@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from get_data import *
+from flash_order import *
 import tqdm
 import glob
 import datetime
@@ -38,7 +39,7 @@ def obj2(pnl, t_exec, lmda=1, t_func=lambda x: x):
     return pnl - (lmda * t_func(t_exec))
 
 
-def sim_one_day_t2(date: str, stock_code:str, side: str, ts: int, tm: int, verbose=False, save=False, overwrite=False) -> pd.DataFrame:
+def sim_one_day_t2(date: str, stock_code:str, side: str, ts: int, tm: int, foms: int, verbose=False, save=False, overwrite=False) -> pd.DataFrame:
     """ Simulate cases where we post an order when spread in tick = 2
 
     :param date: date to simulate on
@@ -46,6 +47,7 @@ def sim_one_day_t2(date: str, stock_code:str, side: str, ts: int, tm: int, verbo
     :param side: 'bid' or 'ask'
     :param ts: time to wait til crossing spread, in seconds
     :param tm: time to wait til replacing order with 1 tick better price, in seconds
+    :param foms: time to filter flash orders, in milliseconds
     :param verbose: print computing progress or not
     :param save: If true save result to optres
     :return:
@@ -57,9 +59,14 @@ def sim_one_day_t2(date: str, stock_code:str, side: str, ts: int, tm: int, verbo
     except FileNotFoundError as e:
         log_error(f'Cache does not exist: {cache_path}')
         raise e
-    save_path = os.path.join(OPTRES_DIR, f'stock_code={stock_code}', f'side={side}', f'ts={ts}', f'tm={tm}', f'{date}.csv')
+    save_path = os.path.join(OPTRES_DIR, f'foms={foms}', f'stock_code={stock_code}', f'side={side}', f'ts={ts}', f'tm={tm}', f'{date}.csv')
     if save and os.path.exists(save_path) and not overwrite:
         return
+
+    # Flash Order class for helping classify flash orders
+    foc = FlashOrderCalculator(stock_code=stock_code, stock_data=df)
+    foc.classify(max_dur_ms=foms)
+
     ts_ms, tm_ms = int(ts * 1e3), int(tm * 1e3)
     res = []
     side_coef = -1 if side == 'bid' else 1
@@ -85,6 +92,10 @@ def sim_one_day_t2(date: str, stock_code:str, side: str, ts: int, tm: int, verbo
         if s_ms > 0:
             dur = i_row['dt_ms'] - s_ms
             to_rep_p = m_p + (side_coef * -1) * i_row['tick_size']
+
+            """ TODO:
+                - Add logics to cancel/wait for longer order based on flash order observed
+            """
 
             if dur >= ts_ms:
                 # 1. Time exceed t_star and cross spread
@@ -230,19 +241,20 @@ def insert_new_row(orig_df, new_ms, new_i, new_p):
     return df
 
 
-def sim_main(stock_code, side, ts, tm, overwrite):
+def sim_main(stock_code, side, foms, ts, tm, overwrite):
     """ Main function to simulate experiment on one set of params
 
     :param stock_code:
     :param side:
+    :param foms:
     :param ts:
     :param tm:
     :param overwrite:
     :return:
     """
     st = datetime.datetime.now()
-    prefix = f'[{stock_code}-{side}-ts={ts}-tm={tm}]'
-    path_ls = glob.glob(os.path.join(PROJECT_DIR, 'optres', f'stock_code={stock_code}', f'side={side}', f'ts={ts}', f'tm={tm}', '*'))
+    prefix = f'[{stock_code}-{side}-{foms}-ts={ts}-tm={tm}]'
+    path_ls = glob.glob(os.path.join(PROJECT_DIR, 'optres', f'foms={foms}', f'stock_code={stock_code}', f'side={side}', f'ts={ts}', f'tm={tm}', '*'))
     if overwrite:
         for path in path_ls:
             os.remove(path)
@@ -251,7 +263,7 @@ def sim_main(stock_code, side, ts, tm, overwrite):
             log_info(f'{prefix} Simulation result exists')
             return
     date_ls = [i.replace('.pkl', '') for i in os.listdir(os.path.join(CACHE_DIR, stock_code))]
-    params_ls = [[d, stock_code, side, ts, tm, False, True, overwrite] for d in date_ls]
+    params_ls = [[d, stock_code, side, ts, tm, foms, False, True, overwrite] for d in date_ls]
     pool_run_func(sim_one_day_t2, params_ls)
     log_info(f'{prefix} Done simulation on {len(params_ls)} days - {(datetime.datetime.now() - st).total_seconds():.2f}s')
     return
@@ -261,6 +273,7 @@ if __name__ == '__main__':
     arg_parser = ArgumentParser()
     arg_parser.add_argument('-C', '--code', dest='stock_code', type=str, default='', help='Stock code to simulate')
     arg_parser.add_argument('-S', '--side', dest='side', type=str, default='', help='bid or ask')
+    arg_parser.add_argument('-F', '--foms', dest='foms', type=int, default=0, help='flash order ms')
     arg_parser.add_argument('-s', '--ts', dest='ts', type=int, default=-1, help='T star in seconds')
     arg_parser.add_argument('-m', '--tm', dest='tm', type=int, default=-1, help='T mid in seconds')
     arg_parser.add_argument('-o', '--overwrite', dest='overwrite', type=bool, default=False, help='Overwrite or not')

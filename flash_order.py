@@ -8,7 +8,7 @@ import datetime
 
 
 class FlashOrderCalculator:
-    def __init__(self, stock_code: str):
+    def __init__(self, stock_code: str, stock_data=None):
         """ Get a quotes df from and then compute fleeting quotes attributions:
 
             - DONE - Flash order spectrum (Freq plot by time)
@@ -19,8 +19,12 @@ class FlashOrderCalculator:
             - DONE - Success rate of flash orders (Should be higher than Ashare/US market)
 
         :param stock_code: target stock to work on
+        :param stock_data: extracted data from stock cache file
         """
-        self.data_gb = get_one_stock_data(stock_code=stock_code, verbose=True, gb_days=True)
+        if stock_data:
+            self.data_gb = {k: v.reset_index(drop=True) for k, v in stock_data.groupby('date')}
+        else:
+            self.data_gb = get_one_stock_data(stock_code=stock_code, verbose=True, gb_days=True)
         self.fod = {}  # flash order dict
 
     def classify(self, max_dur_ms: int = 100, trick_trade_thres_ms: int = 100):
@@ -36,6 +40,10 @@ class FlashOrderCalculator:
                 return
         else:
             self.fod[max_dur_ms] = {}
+
+        if max_dur_ms == 0:
+            self.fod[max_dur_ms][trick_trade_thres_ms] = []
+            return
 
         one_fod = []
         for d, df in tqdm.tqdm(self.data_gb.items(), desc='ClassifyingFlashOrder', ncols=200, total=len(self.data_gb)):

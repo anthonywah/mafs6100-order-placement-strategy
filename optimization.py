@@ -2,8 +2,8 @@ from simulation import *
 import seaborn as sns
 
 
-def opt_main(stock_code, side, ts_ls, tm_ls, overwrite=False):
-    prefix = f'[{stock_code}-{side}-{overwrite}]'
+def opt_main(stock_code, side, foms, ts_ls, tm_ls, overwrite=False):
+    prefix = f'[{stock_code}-{side}-{foms}-{overwrite}]'
     log_info(f'{prefix} Start optimization on {len(ts_ls) * len(tm_ls)} param sets')
     st = datetime.datetime.now()
     cache_dir = os.path.join(CACHE_DIR, stock_code)
@@ -14,9 +14,9 @@ def opt_main(stock_code, side, ts_ls, tm_ls, overwrite=False):
     for ts in ts_ls:
         for tm in tm_ls:
             if not (ts > 0 and ts >= tm >= 0):
-                log_info(f'[{stock_code}-{side}-ts={ts}-tm={tm}] -- Skip invalid params --')
+                log_info(f'{prefix.replace("]", f"-ts={ts}-tm={tm}]")} -- Skip invalid params --')
                 continue
-            sim_main(stock_code=stock_code, side=side, ts=ts, tm=tm, overwrite=overwrite)
+            sim_main(stock_code=stock_code, side=side, foms=foms, ts=ts, tm=tm, overwrite=overwrite)
     log_info(f'{prefix} Done optimization - {(datetime.datetime.now() - st).total_seconds():.2f}s')
     return
 
@@ -28,8 +28,8 @@ def get_path_df():
     """
     file_ls = glob.glob(os.path.join(PROJECT_DIR, 'optres', '**', '*.*'), recursive=True)
     file_split_ls = [(i, i.split('/')) for i in file_ls]
-    files_df = pd.DataFrame([[f_ls[6], f_ls[7], f_ls[8], f_ls[9], f] for f, f_ls in file_split_ls],
-                            columns=['stock_code', 'side', 'ts', 'tm', 'path'])
+    files_df = pd.DataFrame([[f_ls[6], f_ls[7], f_ls[8], f_ls[9], f_ls[10], f] for f, f_ls in file_split_ls],
+                            columns=['foms', 'stock_code', 'side', 'ts', 'tm', 'path'])
     for i in files_df.columns[:-1]:
         files_df.loc[:, i] = files_df[i].str.split('=', expand=True)[1]
     return files_df
@@ -100,6 +100,7 @@ if __name__ == '__main__':
     arg_parser = ArgumentParser()
     arg_parser.add_argument('-C', '--code', dest='stock_code', type=str, default='', help='Stock code to simulate')
     arg_parser.add_argument('-S', '--side', dest='side', type=str, default='', help='bid or ask')
+    arg_parser.add_argument('-F', '--foms', dest='foms', type=int, default='', help='flash order ms')
     arg_parser.add_argument('-o', '--overwrite', dest='overwrite', type=bool, default=False, help='Overwrite or not')
     arg_parser.add_argument('--ts_start', dest='ts_start', type=int, default=-1, help='T star start')
     arg_parser.add_argument('--ts_step', dest='ts_step', type=int, default=-1, help='T star step')
