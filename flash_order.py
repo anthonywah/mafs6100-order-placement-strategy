@@ -21,17 +21,18 @@ class FlashOrderCalculator:
         :param stock_code: target stock to work on
         :param stock_data: extracted data from stock cache file
         """
-        if stock_data:
+        if stock_data is not None:
             self.data_gb = {k: v.reset_index(drop=True) for k, v in stock_data.groupby('date')}
         else:
             self.data_gb = get_one_stock_data(stock_code=stock_code, verbose=True, gb_days=True)
         self.fod = {}  # flash order dict
 
-    def classify(self, max_dur_ms: int = 100, trick_trade_thres_ms: int = 100):
+    def classify(self, max_dur_ms: int = 100, trick_trade_thres_ms: int = 100, verbose: bool = True):
         """ classify quote updates over the day, to look for flash orders
 
         :param max_dur_ms: Maximum duration allowed for the flash quotes, ms
         :param trick_trade_thres_ms: Maximum time in ms to count a trade that is tricked by the flash order
+        :param verbose:
         :return:
         """
         if max_dur_ms in self.fod.keys():
@@ -46,7 +47,11 @@ class FlashOrderCalculator:
             return
 
         one_fod = []
-        for d, df in tqdm.tqdm(self.data_gb.items(), desc='ClassifyingFlashOrder', ncols=200, total=len(self.data_gb)):
+        iter_obj = self.data_gb.items()
+        if verbose:
+            iter_obj = tqdm.tqdm(self.data_gb.items(), desc='ClassifyingFlashOrder', ncols=200, total=len(self.data_gb))
+
+        for d, df in iter_obj:
 
             # Find improved and worsened cases to be considered
             bid_improved_ind = df.loc[(df['BP1'].diff() > 0) & (df['BP1'] > 0) & (df['BP1'].shift() > 0)].index.tolist()

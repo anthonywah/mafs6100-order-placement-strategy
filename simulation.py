@@ -39,7 +39,7 @@ def obj2(pnl, t_exec, lmda=1, t_func=lambda x: x):
     return pnl - (lmda * t_func(t_exec))
 
 
-def sim_one_day_t2(date: str, stock_code:str, side: str, ts: int, tm: int, foms: int, verbose=False, save=False, overwrite=False) -> pd.DataFrame:
+def sim_one_day_t2(date: str, stock_code: str, side: str, ts: int, tm: int, foms: int, verbose=False, save=False, overwrite=False) -> pd.DataFrame:
     """ Simulate cases where we post an order when spread in tick = 2
 
     :param date: date to simulate on
@@ -63,9 +63,24 @@ def sim_one_day_t2(date: str, stock_code:str, side: str, ts: int, tm: int, foms:
     if save and os.path.exists(save_path) and not overwrite:
         return
 
-    # Flash Order class for helping classify flash orders
+    # Flash Order classification
     foc = FlashOrderCalculator(stock_code=stock_code, stock_data=df)
-    foc.classify(max_dur_ms=foms)
+    foc.classify(max_dur_ms=foms, trick_trade_thres_ms=100, verbose=False)
+    fo_df = pd.DataFrame(foc.fod[foms][100])
+    merge_cols = ['start_index', 'start_ms', 'end_index', 'end_ms']
+    for col in merge_cols:
+        fo_df[col] = fo_df[col].astype(int)
+    if len(fo_df):
+        fo_df_gb = fo_df.groupby('side')
+        for i_side in ['bid', 'ask']:
+            if i_side not in fo_df_gb.groups.keys():
+                df.loc[:, [f'{i_side}_fo_{i}' for i in merge_cols]] = np.nan
+                continue
+            i_fo_df = fo_df_gb.get_group(i_side)
+            i_fo_df = i_fo_df[merge_cols].reset_index(drop=True)
+            i_fo_df.rename(columns={i: f'{i_side}_fo_{i}' for i in i_fo_df.columns}, inplace=True)
+            i_fo_df = i_fo_df.set_index(f'{i_side}_fo_end_index')
+            df = df.join(i_fo_df)
 
     ts_ms, tm_ms = int(ts * 1e3), int(tm * 1e3)
     res = []
