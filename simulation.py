@@ -12,7 +12,8 @@ PLOT_CASE_LABEL = {
     'INIT': 'Initial Order Fill',
     'INITFFO': 'Initial Order Fill with Far Touch FO',
     'TAKE': 'Timeout Take',
-    'EOQREP': 'Replaced Order Fill (End of Queue)'
+    'EOQREP': 'Replaced Order Fill (End of Queue)',
+    'CANCEL': 'Cancelled due to Near Touch FO'
 }
 
 
@@ -164,9 +165,12 @@ def sim_one_day_t2(date: str, stock_code: str, side: str, ts: int, tm: int, foms
 
             elif i_row[f'{side}_fo_start_ms'] > s_ms:
                 # Near touch flash order observed - Cancel
+                f_i, f_bid, f_ask, pnl, case = -1, -1, -1, np.nan, 'CANCEL'
+                res.append([date, m_p, f_p, case, eoq, dur, pnl, s_ms, s_i, s_p, s_bid, s_ask, r_ms, r_i, r_p, r_bid, r_ask, f_ms, f_i, f_bid, f_ask])
+
+                # Reset
                 s_ms, s_bid, s_ask, r_ms, r_bid, r_ask, f_ms, f_bid, f_ask, s_mid = 0, 0., 0., 0, 0., 0., 0, 0., 0., 0.
                 no_rep, eoq, w_r, fill, rep, dur, case, s_p, m_p, r_p, f_p, pnl, s_i, r_i, f_i = False, False, False, False, False, 0, '', 0., 0., 0., 0., 0., -1, -1, -1
-                res.append([date, m_p, f_p, case, eoq, dur, pnl, s_ms, s_i, s_p, s_bid, s_ask, r_ms, r_i, r_p, r_bid, r_ask, f_ms, f_i, f_bid, f_ask])
 
             # Append result and reset
             if fill:
