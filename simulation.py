@@ -10,6 +10,7 @@ from argparse import ArgumentParser
 PLOT_CASE_LABEL = {
     'REP': 'Replaced Order Fill',
     'INIT': 'Initial Order Fill',
+    'INITFFO': 'Initial Order Fill with Far Touch FO',
     'TAKE': 'Timeout Take',
     'EOQREP': 'Replaced Order Fill (End of Queue)'
 }
@@ -68,13 +69,10 @@ def sim_one_day_t2(date: str, stock_code: str, side: str, ts: int, tm: int, foms
     foc.classify(max_dur_ms=foms, trick_trade_thres_ms=100, verbose=False)
     fo_df = pd.DataFrame(foc.fod[foms][100])
     merge_cols = ['start_index', 'start_ms', 'end_index', 'end_ms']
-    for col in merge_cols:
-        fo_df[col] = fo_df[col].astype(int)
     if len(fo_df):
         fo_df_gb = fo_df.groupby('side')
         for i_side in ['bid', 'ask']:
             if i_side not in fo_df_gb.groups.keys():
-                df.loc[:, [f'{i_side}_fo_{i}' for i in merge_cols]] = np.nan
                 continue
             i_fo_df = fo_df_gb.get_group(i_side)
             i_fo_df = i_fo_df[merge_cols].reset_index(drop=True)
@@ -82,9 +80,19 @@ def sim_one_day_t2(date: str, stock_code: str, side: str, ts: int, tm: int, foms
             i_fo_df = i_fo_df.set_index(f'{i_side}_fo_end_index')
             df = df.join(i_fo_df)
 
+    # Confirm data type
+    for i_col in merge_cols:
+        for i_side in ['bid', 'ask']:
+            col = f'{i_side}_fo_{i_col}'
+            if col not in df.columns:
+                df.loc[:, col] = -1
+            df[col] = df[col].replace(np.nan, -1)
+            df[col] = df[col].astype(int)
+
     ts_ms, tm_ms = int(ts * 1e3), int(tm * 1e3)
     res = []
     side_coef = -1 if side == 'bid' else 1
+    opp_side = 'ask' if side == 'bid' else 'bid'
     make_p_col = 'BP1' if side == 'bid' else 'SP1'
     take_p_col = 'SP1' if side == 'bid' else 'BP1'
     prev_bid, prev_ask, prev_make_p, prev_take_p, prev_dur = None, None, None, None, None
@@ -94,10 +102,13 @@ def sim_one_day_t2(date: str, stock_code: str, side: str, ts: int, tm: int, foms
 
     # Reset variables for one order
     s_ms, s_bid, s_ask, r_ms, r_bid, r_ask, f_ms, f_bid, f_ask, s_mid = 0, 0., 0., 0, 0., 0., 0, 0., 0., 0.
-    eoq, w_r, fill, rep, dur, case, s_p, m_p, r_p, f_p, pnl, s_i, r_i, f_i = False, False, False, False, 0, '', 0., 0., 0., 0., 0., -1, -1, -1
+    no_rep, eoq, w_r, fill, rep, dur, case, s_p, m_p, r_p, f_p, pnl, s_i, r_i, f_i = False, False, False, False, False, 0, '', 0., 0., 0., 0., 0., -1, -1, -1
 
     iter_obj = df.iterrows() if not verbose else tqdm.tqdm(df.iterrows(), desc=f'{date}:Simulation', ncols=200, total=len(df))
     for i, i_row in iter_obj:
+
+        """ TODO: Solve inconsistent result between foms = 200 and 0
+        """
 
         # Skip multi-level trades updates
         if i_row['BP1'] == 0:
@@ -107,10 +118,6 @@ def sim_one_day_t2(date: str, stock_code: str, side: str, ts: int, tm: int, foms
         if s_ms > 0:
             dur = i_row['dt_ms'] - s_ms
             to_rep_p = m_p + (side_coef * -1) * i_row['tick_size']
-
-            """ TODO:
-                - Add logics to cancel/wait for longer order based on flash order observed
-            """
 
             if dur >= ts_ms:
                 # 1. Time exceed t_star and cross spread
@@ -130,23 +137,36 @@ def sim_one_day_t2(date: str, stock_code: str, side: str, ts: int, tm: int, foms
                         f_p, f_ms = m_p, i_row['dt_ms']
                         case, fill = 'EOQREP', True
 
+            elif i_row[f'{opp_side}_fo_start_ms'] > s_ms:
+                # Far touch flash order observed - Wait and no replace
+                no_rep = True
+
             elif dur >= tm_ms:
-                # Replace order
-                if (not to_rep_p == i_row[take_p_col]) or (to_rep_p != prev_take_p and prev_dur < tm_ms):
-                    m_p = to_rep_p
-                    r_ms, r_bid, r_ask, r_p = s_ms + tm_ms, i_row['BP1'], i_row['SP1'], m_p
-                    r_i, rep = i, True
-                    if w_r:
-                        r_ms = i_row['dt_ms']
-                    if side_coef * (s_p - (prev_make_p if dur > tm_ms else i_row[make_p_col])) > 0:
-                        eoq = True
-                else:
-                    w_r = True
+                # Replace order if no far touch flash order observed
+                if not no_rep:
+                    if (not to_rep_p == i_row[take_p_col]) or (to_rep_p != prev_take_p and prev_dur < tm_ms):
+                        m_p = to_rep_p
+                        r_ms, r_bid, r_ask, r_p = s_ms + tm_ms, i_row['BP1'], i_row['SP1'], m_p
+                        r_i, rep = i, True
+                        if w_r:
+                            r_ms = i_row['dt_ms']
+                        if side_coef * (s_p - (prev_make_p if dur > tm_ms else i_row[make_p_col])) > 0:
+                            eoq = True
+                    else:
+                        w_r = True
 
             elif (side_coef * (i_row['lastPx'] - m_p)) > 0 or (side_coef * (i_row[take_p_col] - m_p)) >= 0:
                 # 3. Non-rep order filled by either 1 tick narrower of opposite side or trade update at my price
                 f_p, f_ms = m_p, i_row['dt_ms']
                 case, fill = 'INIT', True
+                if no_rep:
+                    case = 'INITFFO'
+
+            elif i_row[f'{side}_fo_start_ms'] > s_ms:
+                # Near touch flash order observed - Cancel
+                s_ms, s_bid, s_ask, r_ms, r_bid, r_ask, f_ms, f_bid, f_ask, s_mid = 0, 0., 0., 0, 0., 0., 0, 0., 0., 0.
+                no_rep, eoq, w_r, fill, rep, dur, case, s_p, m_p, r_p, f_p, pnl, s_i, r_i, f_i = False, False, False, False, False, 0, '', 0., 0., 0., 0., 0., -1, -1, -1
+                res.append([date, m_p, f_p, case, eoq, dur, pnl, s_ms, s_i, s_p, s_bid, s_ask, r_ms, r_i, r_p, r_bid, r_ask, f_ms, f_i, f_bid, f_ask])
 
             # Append result and reset
             if fill:
@@ -154,8 +174,10 @@ def sim_one_day_t2(date: str, stock_code: str, side: str, ts: int, tm: int, foms
                 if case == 'TAKE' and i_row['dt_ms'] - s_ms > ts_ms:
                     f_bid, f_ask = prev_bid, prev_ask
                 res.append([date, m_p, f_p, case, eoq, dur, pnl, s_ms, s_i, s_p, s_bid, s_ask, r_ms, r_i, r_p, r_bid, r_ask, f_ms, f_i, f_bid, f_ask])
+
+                # Reset - Same codes as cancel order
                 s_ms, s_bid, s_ask, r_ms, r_bid, r_ask, f_ms, f_bid, f_ask, s_mid = 0, 0., 0., 0, 0., 0., 0, 0., 0., 0.
-                eoq, w_r, fill, rep, dur, case, s_p, m_p, r_p, f_p, pnl, s_i, r_i, f_i = False, False, False, False, 0, '', 0., 0., 0., 0., 0., -1, -1, -1
+                no_rep, eoq, w_r, fill, rep, dur, case, s_p, m_p, r_p, f_p, pnl, s_i, r_i, f_i = False, False, False, False, False, 0, '', 0., 0., 0., 0., 0., -1, -1, -1
 
         # No ongoing round - check if need to start a new round
         elif i_row['spread_in_tick'] == 2:
@@ -298,4 +320,4 @@ if __name__ == '__main__':
     assert args.side in ('ask', 'bid')
     assert args.ts > 0 and 0 <= args.tm <= args.ts
 
-    sim_main(stock_code=args.stock_code, side=args.side, ts=args.ts, tm=args.tm, overwrite=args.overwrite)
+    sim_main(stock_code=args.stock_code, side=args.side, foms=args.foms, ts=args.ts, tm=args.tm, overwrite=args.overwrite)

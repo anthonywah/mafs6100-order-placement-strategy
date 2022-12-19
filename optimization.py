@@ -50,6 +50,10 @@ def get_sim_res(path_ls, cond=None):
         df_ls = pool_run_func(read_csv_func, path_ls)
         df = pd.concat(df_ls).reset_index(drop=True)
         save_pkl_helper(df, os.path.join(os.path.dirname(path_ls[0]), 'full_res.pkl'))
+
+    # As we are adding CANCEL cases, need to filter out by pnl first
+    df = df.loc[~df['pnl'].isna(), :].reset_index(drop=True)
+
     df.loc[:, 'duration'] = df['duration'].replace(0, np.nan)
     if cond:
         df = df.loc[cond(df), :].reset_index(drop=True)
