@@ -1,0 +1,22 @@
+---
+title: "MAFS6100 Independent Project - Order Placement Strategy"
+subtitle: "Final Report"
+author: "Anthony Wah, George Chen"
+output: pdf_document
+date: "2022 Fall"
+fontsize: 9pt
+geometry: "left=1.1cm,right=1.1cm,top=0.8cm,bottom=2cm"
+---
+
+# Abstract
+
+
+# Data Exploration
+
+
+# Stage 1
+
+
+# Stage 2
+
+
