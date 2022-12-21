@@ -121,6 +121,7 @@ if __name__ == '__main__':
     opt_main(
         stock_code=args.stock_code,
         side=args.side,
+        foms=args.foms,
         ts_ls=list(range(args.ts_start, args.ts_end + 1, args.ts_step)),
         tm_ls=list(range(args.tm_start, args.tm_end + 1, args.tm_step)),
         overwrite=args.overwrite
