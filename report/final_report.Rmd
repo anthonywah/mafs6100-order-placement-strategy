@@ -10,13 +10,21 @@ geometry: "left=1.1cm,right=1.1cm,top=0.8cm,bottom=2cm"
 
 # Abstract
 
+Order Placement Strategy plays an important role in today's electronic trading. It helps traders to reduce inventory risk, deal with slippage and execution risk. In this paper, we conduct in-depth analysis on the Taiwan stock and ETF market to explore an optimal order placement strategy under the situation when there are more than one ticks between the bid and ask. By analyzing the spread distribution, effect of order replacement, as well as the characteristics and influence of flickering quotes, we demonstrated that ....
 
-# Data Exploration
+# Stage 1 - Data Exploration
 
+# Stage 2 - Order Replacement Strategy 
 
-# Stage 1
+# Stage 3 - Optimization Results
 
+# Stage 4 - Characteristics and Influence of Flickering Quotes
 
-# Stage 2
+# Stage 5 - Order Replacement Strategy with flickering quotes
+
+# Conclusion
+
+# Reference
+
 
 
