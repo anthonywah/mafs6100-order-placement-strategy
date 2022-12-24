@@ -62,8 +62,10 @@ def sim_one_day_t2(date: str, stock_code: str, side: str, ts: int, tm: int, foms
         log_error(f'Cache does not exist: {cache_path}')
         raise e
     save_path = os.path.join(OPTRES_DIR, f'foms={foms}', f'stock_code={stock_code}', f'side={side}', f'ts={ts}', f'tm={tm}', f'{date}.csv')
-    if save and os.path.exists(save_path) and not overwrite:
-        return
+    if os.path.exists(save_path) and not overwrite:
+        if save:
+            return
+        return df
 
     # Flash Order classification
     foc = FlashOrderCalculator(stock_code=stock_code, stock_data=df)
@@ -107,9 +109,6 @@ def sim_one_day_t2(date: str, stock_code: str, side: str, ts: int, tm: int, foms
 
     iter_obj = df.iterrows() if not verbose else tqdm.tqdm(df.iterrows(), desc=f'{date}:Simulation', ncols=200, total=len(df))
     for i, i_row in iter_obj:
-
-        """ TODO: Solve inconsistent result between foms = 200 and 0
-        """
 
         # Skip multi-level trades updates
         if i_row['BP1'] == 0:
