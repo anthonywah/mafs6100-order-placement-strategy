@@ -82,11 +82,11 @@ def plot_heatmap(stock_code_ls, side_ls, plot_attri_ls, res_dict):
                 else:
                     ax = axs
                 target_res_dict = {k: v for k, v in res_dict.items() if stock_code in k and side in k}
-                ts_ls = sorted(list(set([int(i[2]) for i in target_res_dict.keys()])))
-                tm_ls = sorted(list(set([int(i[3]) for i in target_res_dict.keys()])))
+                ts_ls = sorted(list(set([int(i[3]) for i in target_res_dict.keys()])))
+                tm_ls = sorted(list(set([int(i[4]) for i in target_res_dict.keys()])))
                 matrix_df = pd.DataFrame(np.nan, index=ts_ls, columns=tm_ls)
                 for k, v in target_res_dict.items():
-                    matrix_df.loc[int(k[2]), int(k[3])] = v[plot_attri]
+                    matrix_df.loc[int(k[3]), int(k[4])] = v[plot_attri]
                 sns.heatmap(matrix_df.loc[ts_ls, tm_ls], ax=ax, annot=True, fmt='.2g', annot_kws={"fontsize": 8})
                 ax.set_xlabel('tm', fontsize=12)
                 ax.set_ylabel('ts', fontsize=12)
