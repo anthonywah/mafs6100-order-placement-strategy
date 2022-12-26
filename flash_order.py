@@ -200,3 +200,28 @@ class FlashOrderCalculator:
         fig.tight_layout()
         plt.show()
         return
+
+    def get_flick_influ(self, fo_dur=100, decay=5):
+        data = self.data_gb
+        if fo_dur not in self.fod.keys():
+            log_error(f'Please classify flickering quote first')
+            raise Exception('NoSimulationResultAvailable')
+        fod_dict = list(self.fod[fo_dur].values())[0]
+        bid_mv = []
+        ask_mv = []
+
+        for item in tqdm.tqdm(fod_dict):
+            st, et, date = item['start'], item['end'], item['date']
+            quotes = data[date][(data[date].dt >= et) & (data[date].dt <= et + datetime.timedelta(seconds=decay))]
+            quotes = quotes[quotes['BP1'] > 0]
+            if len(quotes) == 0:
+                continue
+            orig_mid = quotes.iloc[0]['mid']
+            mid = quotes.iloc[-1]['mid']
+            mv_pct = (mid / orig_mid - 1) * 100
+            if item['side'] == 'bid':
+                bid_mv.append(mv_pct)
+            else:
+                ask_mv.append(mv_pct)
+
+        return bid_mv, ask_mv

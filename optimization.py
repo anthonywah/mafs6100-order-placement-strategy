@@ -3,6 +3,16 @@ import seaborn as sns
 
 
 def opt_main(stock_code, side, foms, ts_ls, tm_ls, overwrite=False):
+    """ Main function to call for optimizing set of parameters on simulation
+
+    :param stock_code:  target stock to simulate
+    :param side:        target side to simulate
+    :param foms:        target threshold for classifying flash orders
+    :param ts_ls:       list of ts to optimize
+    :param tm_ls:       list of tm to optimize
+    :param overwrite:   whether to overwrite the results
+    :return:
+    """
     prefix = f'[{stock_code}-{side}-{foms}-{overwrite}]'
     log_info(f'{prefix} Start optimization on {len(ts_ls) * len(tm_ls)} param sets')
     st = datetime.datetime.now()
@@ -21,25 +31,30 @@ def opt_main(stock_code, side, foms, ts_ls, tm_ls, overwrite=False):
     return
 
 
-def get_path_df():
+def get_path_df(update=False):
     """ Get a dataframe of path of simulation result, w.r.t corresponding parameters
 
+    :param update: True if
     :return:
     """
+    if not update:
+        return read_pkl_helper(os.path.join(CACHE_DIR, 'path_df.pkl'))
     file_ls = glob.glob(os.path.join(PROJECT_DIR, 'optres', '**', '*.*'), recursive=True)
     file_split_ls = [(i, i.split('/')) for i in file_ls]
-    files_df = pd.DataFrame([[f_ls[6], f_ls[7], f_ls[8], f_ls[9], f_ls[10], f] for f, f_ls in file_split_ls],
-                            columns=['foms', 'stock_code', 'side', 'ts', 'tm', 'path'])
-    for i in files_df.columns[:-1]:
-        files_df.loc[:, i] = files_df[i].str.split('=', expand=True)[1]
-    return files_df
+    path_df = pd.DataFrame([[f_ls[6], f_ls[7], f_ls[8], f_ls[9], f_ls[10], f] for f, f_ls in file_split_ls],
+                           columns=['foms', 'stock_code', 'side', 'ts', 'tm', 'path'])
+    for i in path_df.columns[:-1]:
+        path_df.loc[:, i] = path_df[i].str.split('=', expand=True)[1]
+    save_pkl_helper(path_df, os.path.join(CACHE_DIR, 'path_df.pkl'))
+    return path_df
 
 
-def get_sim_res(path_ls, cond=None):
+def get_sim_res(path_ls, cond=None, sequential=True):
     """ Take in a list of simulation result paths, get simulation results
 
-    :param path_ls:
-    :param cond: function to apply condition to filter dataframe
+    :param path_ls:     list of simulation results to be read
+    :param cond:        function to apply condition to filter dataframe
+    :param sequential:  true if read data sequentially but not in multi-processing
     :return:
     """
 
@@ -47,7 +62,10 @@ def get_sim_res(path_ls, cond=None):
     if len(full_res_path):
         df = read_pkl_helper(full_res_path[0])
     else:
-        df_ls = pool_run_func(read_csv_func, path_ls)
+        if sequential:
+            df_ls = [read_csv_func(i) for i in path_ls]
+        else:
+            df_ls = pool_run_func(read_csv_func, path_ls)
         df = pd.concat(df_ls).reset_index(drop=True)
         save_pkl_helper(df, os.path.join(os.path.dirname(path_ls[0]), 'full_res.pkl'))
 
@@ -60,13 +78,14 @@ def get_sim_res(path_ls, cond=None):
     return {'pnl': df['pnl'].values, 'duration': df['duration'].values}
 
 
-def plot_heatmap(stock_code_ls, side_ls, plot_attri_ls, res_dict):
-    """
+def plot_heatmap(stock_code_ls, side_ls, plot_attri_ls, res_dict, save_path=None):
+    """ Plot the attributes in different heatmaps
 
-    :param stock_code_ls:
-    :param side_ls:
-    :param plot_attri_ls:
-    :param res_dict:
+    :param stock_code_ls:   list of stocks to plot
+    :param side_ls:         list of target side to plot
+    :param plot_attri_ls:   list of attributes to plot
+    :param res_dict:        dict storing attributes of simulation results (mean score, take % ... etc)
+    :param save_path:       Path to save the figure, if save_path is None then plt.show() will be called
     :return:
     """
     col_len, row_len = len(stock_code_ls), len(side_ls) * len(plot_attri_ls)
@@ -92,8 +111,70 @@ def plot_heatmap(stock_code_ls, side_ls, plot_attri_ls, res_dict):
                 ax.set_ylabel('ts', fontsize=12)
                 ax.set_title(f'{stock_code} - {side} - {plot_attri}', fontsize=16)
     fig.tight_layout()
-    plt.show()
+    if save_path:
+        fig.savefig(save_path)
+    else:
+        plt.show()
     return
+
+
+def calc_sim_results(path_df, obj_kwargs=None):
+    """ A wrapped runner for calculating results of simulations given list of paths to run (as a dataframe)
+
+    :param path_df:     dataframe listing out paths of simulation results to read
+    :param obj_kwargs:  kwargs for objective function
+    :return:
+    """
+    gb = path_df.groupby(['stock_code', 'foms', 'side', 'ts', 'tm'])
+    if obj_kwargs is None:
+        obj_kwargs = {'lmda': 0, 't_func': lambda x: np.sqrt(x / 1000.)}
+    res = {}
+    for gp_key, df in tqdm.tqdm(gb, desc='GettingSimData', ncols=200, total=len(gb.groups)):
+        if gp_key not in res.keys():
+            res[gp_key] = get_sim_res(path_ls=df['path'].unique().tolist())
+
+        # EoQ cases
+        if 'eoq_res' not in res[gp_key].keys():
+            res[gp_key]['eoq_res'] = get_sim_res(path_ls=df['path'].unique().tolist(), cond=lambda xdf: xdf['eoq_rep'])
+        eoq_score = obj2(res[gp_key]['eoq_res']['pnl'], res[gp_key]['eoq_res']['duration'], **obj_kwargs)
+        eoq_score = eoq_score[np.logical_and(~np.isnan(eoq_score), ~np.isinf(eoq_score))]
+        res[gp_key].update({
+            'eoq_scores': eoq_score,
+            'eoq_count_k': len(eoq_score) / 1000,
+            'eoq_score_mean': np.nanmean(eoq_score),
+            'eoq_score_std': np.nanstd(eoq_score)
+        })
+
+        # Take cases
+        if 'take_res' not in res[gp_key].keys():
+            res[gp_key]['take_res'] = get_sim_res(path_ls=df['path'].unique().tolist(), cond=lambda xdf: xdf['case'] == 'TAKE')
+        take_score = obj2(res[gp_key]['take_res']['pnl'], res[gp_key]['take_res']['duration'], **obj_kwargs)
+        take_score = take_score[np.logical_and(~np.isnan(take_score), ~np.isinf(take_score))]
+        res[gp_key].update({
+            'take_scores': take_score,
+            'take_count_k': len(take_score) / 1000,
+            'take_score_mean': np.nanmean(take_score),
+            'take_score_std': np.nanstd(take_score)
+        })
+
+        # Calculate score
+        obj_kwargs = {'lmda': 0, 't_func': lambda x: np.sqrt(x / 1000.)}
+        res_score = obj2(res[gp_key]['pnl'], res[gp_key]['duration'], **obj_kwargs)
+        res_score = res_score[np.logical_and(~np.isnan(res_score), ~np.isinf(res_score))]
+        res[gp_key].update({
+            'scores': res_score,
+            'count_k': len(res_score) / 1000,
+            'score_mean': np.nanmean(res_score),
+            'score_std': np.nanstd(res_score),
+            'eoq_%': len(res[gp_key]['eoq_scores']) / len(res_score),
+            'take_%': len(res[gp_key]['take_scores']) / len(res_score),
+        })
+
+        for i in ['eoq_', 'take_', '']:
+            res[gp_key][f'{i}z_score'] = (res[gp_key][f'{i}score_mean'] + 30) / res[gp_key][f'{i}score_std']
+
+    log_info(f'Got simulation results on {len(res)} set of params')
+    return res
 
 
 if __name__ == '__main__':
