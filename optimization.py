@@ -118,13 +118,17 @@ def plot_heatmap(stock_code_ls, side_ls, plot_attri_ls, res_dict, save_path=None
     return
 
 
-def calc_sim_results(path_df, obj_kwargs=None):
+def calc_sim_results(path_df, obj_kwargs=None, read_cache=False):
     """ A wrapped runner for calculating results of simulations given list of paths to run (as a dataframe)
 
     :param path_df:     dataframe listing out paths of simulation results to read
     :param obj_kwargs:  kwargs for objective function
+    :param read_cache:  opt-in for reading saved result
     :return:
     """
+    cache_path = os.path.join(CACHE_DIR, 'calc_sim_res.pkl')
+    if read_cache and os.path.exists(cache_path):
+        return read_pkl_helper(os.path.join(CACHE_DIR, 'calc_sim_res.pkl'))
     gb = path_df.groupby(['stock_code', 'foms', 'side', 'ts', 'tm'])
     if obj_kwargs is None:
         obj_kwargs = {'lmda': 0, 't_func': lambda x: np.sqrt(x / 1000.)}
@@ -174,6 +178,8 @@ def calc_sim_results(path_df, obj_kwargs=None):
             res[gp_key][f'{i}z_score'] = (res[gp_key][f'{i}score_mean'] + 30) / res[gp_key][f'{i}score_std']
 
     log_info(f'Got simulation results on {len(res)} set of params')
+    if read_cache:  # Save for next time use
+        save_pkl_helper(res, save_path=cache_path)
     return res
 
 

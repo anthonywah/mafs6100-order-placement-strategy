@@ -65,7 +65,7 @@ def sim_one_day_t2(date: str, stock_code: str, side: str, ts: int, tm: int, foms
     if os.path.exists(save_path) and not overwrite:
         if save:
             return
-        return df
+        return pd.read_csv(save_path)
 
     # Flash Order classification
     foc = FlashOrderCalculator(stock_code=stock_code, stock_data=df)
@@ -204,7 +204,7 @@ def sim_one_day_t2(date: str, stock_code: str, side: str, ts: int, tm: int, foms
     return
 
 
-def plot_one_sim(day_df: pd.DataFrame, ts: int, tm: int, side: str, row: pd.Series):
+def plot_one_sim(day_df: pd.DataFrame, ts: int, tm: int, side: str, row: pd.Series, save_path: str = None):
     """ Plot graph of one experiment result
 
     :param day_df: price dataframe of simulation day
@@ -212,6 +212,7 @@ def plot_one_sim(day_df: pd.DataFrame, ts: int, tm: int, side: str, row: pd.Seri
     :param tm: t_m
     :param side: 'bid' or 'ask'
     :param row: pandas series storing one simulation result
+    :param save_path: path to save the figure, if None the terminal will output the printed graph
     :return:
     """
     date, m_p, f_p, case, eoq_rep, dur, pnl, s_ms, s_i, s_p, s_bid, s_ask, r_ms, r_i, r_p, r_bid, r_ask, f_ms, f_i, f_bid, f_ask = row
@@ -254,6 +255,9 @@ def plot_one_sim(day_df: pd.DataFrame, ts: int, tm: int, side: str, row: pd.Seri
     ax.set_title(f'Side={side}; Case={case}; ReplacedEOQ={eoq_rep}; Duration={dur:.2f}ms; Make={m_p:.2f}; Fill={f_p:.2f}; PnL={pnl:.2f}bps', fontsize=16)
     ax.legend()
     fig.tight_layout()
+    if save_path:
+        fig.savefig(save_path)
+        return
     plt.show()
     return sdf
 

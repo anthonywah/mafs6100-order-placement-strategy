@@ -1,8 +1,21 @@
 # MAFS6100 Order Placement Strategy
 
+### To set up this repo:
+
+(Path to data is specified in `get_data.py` line 12. You may change it to your own local path)
+
+Run `pip install -r requirements.txt` on your python / virtual environment to install all the dependencies first. Then follow the below steps to generate figures in the report.
+
+- Firstly download contents of `cache` and `optres` directory [here](https://hkustconnect-my.sharepoint.com/:f:/g/personal/cswahaa_connect_ust_hk/Emzxtl_hhlJDpjJDTOFIwW0BsvBY3MZoxfWWZ0m79ToWGA?e=BTg4RW):
+- Unzip the content of these files and place them inside `cache` and `optres` respectively. 
+- Then run cd to this project directory and run `python setup.py` to ensure necessary directories and files exist
+- Lastly run `python run_figures.py` to generate all the figures in the report (report/final_report.pdf)
+
+Details of usage of different scripts are listed below
+
 ---
 
-`get_file.py`
+`get_data.py`
 - Contains function to call raw stock data
 
 ---
@@ -28,6 +41,7 @@ optional arguments:
   -h, --help            show this help message and exit
   -C STOCK_CODE, --code STOCK_CODE Stock code to simulate
   -S SIDE, --side SIDE  bid or ask
+  -F FOMS, --foms FOMS  flash order ms
   -s TS, --ts TS        T star in seconds
   -m TM, --tm TM        T mid in seconds
   -o OVERWRITE, --overwrite OVERWRITE Overwrite or not
@@ -37,11 +51,11 @@ optional arguments:
 
 `optimization.py`
 - Call `simulation.py` to run simulation over different set of parameters
-- Save results to `optres` such as `optres/stock_code=0050/ts=10/tm=5/yyyy-mm-dd.csv`
+- Save results to `optres` such as `optres/foms=0/stock_code=0050/ts=10/tm=5/yyyy-mm-dd.csv`
 - Can be executed from command line in:
 
 ```shell
-python optimization.py -C 0050 -S bid --ts_start=10 --ts_step=5 --ts_end=120 --tm_start=5 --tm_step=5 --tm_end=120
+python optimization.py -C 0050 -S bid -F 0 --ts_start=10 --ts_step=5 --ts_end=120 --tm_start=5 --tm_step=5 --tm_end=120
 ```
 
 - Description:
@@ -52,6 +66,8 @@ optional arguments:
   -h, --help            show this help message and exit
   -C STOCK_CODE, --code STOCK_CODE Stock code to simulate
   -S SIDE, --side SIDE  bid or ask
+  -F FOMS, --foms FOMS  flash order ms
+  -o OVERWRITE, --overwrite OVERWRITE Overwrite or not
   --ts_start TS_START   T star start
   --ts_step TS_STEP     T star step
   --ts_end TS_END       T star end
@@ -63,11 +79,3 @@ optional arguments:
 - Or alternatively check out `stage-3.ipynb` to see how it can be called in notebook
 
 ---
-
-### Notes
-
-- `stage-2.ipynb` contains code to visualise score distribution of 1 simulation
-- `stage3.ipynb` contains code to visualise heatmap of scores over different set of parameters
-- Objective function is defined in `simulation.py`, and is assessed in `stage-3.ipynb`
-
-

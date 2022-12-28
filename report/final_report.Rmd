@@ -4,7 +4,7 @@ subtitle: "Final Report"
 author: "Anthony Wah, George Chen"
 output: pdf_document
 date: "2022 Fall"
-fontsize: 9pt
+fontsize: 10pt
 geometry: "left=1.1cm,right=1.1cm,top=0.8cm,bottom=2cm"
 ---
 
@@ -16,11 +16,11 @@ Order Placement Strategy plays an important role in today's electronic trading. 
 
 At the first stage, we explore the market data to understand the characteristics of the bid-ask spread. Given the fact that stock 2330 and ETF 0050 have a similar result, we will present the result of 0050 in the rest of the report. 
 
-![Spread in ticks](fig/figure_1.png){#id .class width=39% height=39%}
+![Spread in ticks](fig/figure_1.png){#id .class width=60% height=60%}
 
 As shown in the graph, the bid-ask spreads of ETF 0050 are around 75% in 1- tick, 20% in 2-tick and other 5% in more than 3-tick. It may be because of the inefficiency of ETF so that bid-ask spread has more chance to stay more than 2 ticks. 
 
-![Spread profile](fig/figure_2.png){#id .class width=39% height=39%}
+![Spread profile](fig/figure_2.png){#id .class width=60% height=60%}
 
 From the spread profile of 0050, we can observe that in the first 5 minutes after market open, the spread tends to be statistically larger than the ones in other period of a day. We believe it is due to the active trading activity at market open since many traders are using some ETF tracking or arbitrage strategies. Since there are more pricing and flows during the first minutes of market open, spread may occurs in this period and there are more chances for us to utilize it with our proposed order placement strategy.
 
@@ -39,11 +39,11 @@ Following this strategy, we can have three different results:
 - After Replacing the order at $b_1$ with $b_\star$ at $t_m$, we waited til $t_\star$ but no people hit our price, we then cross the spread, fill at $a_1$
 
 
-![Siulation Score Mean](fig/figure_3.png){#id .class width=49% height=49%}
+![Simulation Case REP](fig/figure_3.png){#id .class width=49% height=49%}
 
 In this case, we enter the trade at 146.5 when the ask is 146.6 and bid sits at 146.5. After 5000ms($t_m$), our order at $b_1$ has not been executed, we then lift it to 146.55 which is one tick higher than the original price. Fortunately, the ask 1 comes down and our new bid order gets executed within $t_\star$
 
-![Siulation Score Mean](fig/figure_4.png){#id .class width=49% height=49%}
+![Simulation Case TAKE](fig/figure_4.png){#id .class width=49% height=49%}
 
 In this example, we enter the trade at 146 when the ask is 146.15 and bid sits at 146. After 5000ms($t_m$), our order at $b_1$ has not been executed, we then lift it to 146.05 which is one tick higher than the original price. However, we didn't get filled after $t_m$ so we cross the spread and take the price at $a_1$. 
 
@@ -53,7 +53,7 @@ As for the measure of performance of our strategy, we consider both PnL and exec
 
 With the score and our order placement strategy, we managed to tune the parameters of $t_m, t_\star$ to explore the optimal replacement time and maximum waiting duration. 
 
-#### Insert here
+![Simulation Score Mean & Stdev](fig/figure_5.png){#id .class width=80% height=80%}
 
 From the heatmap of score mean under different setting of $t_\star$ and $t_m$, we can observe that the score is improved with the increasing of  $t_\star$ and decreasing of $t_m$. To be specific, the optimal point among these settings is {$t_\star = 20, t_m = 1$} which means our maximum waiting duration would be 20 seconds and the replacement time is 1 seconds. With this setting, we try to replace our orders as soon as possible and keep waiting as long as we can. It is an quite interesting result since $t_m$ and $t_\star$ play quite different roles in our strategy. 
 
@@ -98,11 +98,11 @@ We will now re-run the above simulations (stock_code = 0050, side = bid, thresho
 
 For simplicity, we have set $n = 1$ in the simulations. We expect that mean scores will improve, number of TAKE cases will decrease as we cancel orders that may possibly trade against our flavor, and number of INIT cases will increase as we wait longer for orders that may possibly trade into our flavor. The heatmap of the simulation results ($t_s = 1,...,20; t_m = 1,...,20$) are shown below:
 
-![Siulation Score Mean](fig/figure_9.png){#id .class width=99% height=99%}
+![Simulation Score Mean](fig/figure_8.png){#id .class width=99% height=99%}
 
 In fact, we didn't observe a significant improvement in scores over the set of simulation parameter, and for some of the simulations the score even worsened. For instance, score of set $t_m = 10, t_s = 20$ is -2.08 without consideration of flickering quotes, but -2.11 with the consideration. To verify and explain the observation, we may do a cases distribution breakdown:
 
-![Cases Distribution Breakdown](fig/figure_10.png){#id .class width=70% height=70%}
+![Cases Distribution Breakdown](fig/figure_9.png){#id .class width=70% height=70%}
 
 We can observe that:
 
