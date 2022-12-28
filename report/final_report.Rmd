@@ -40,7 +40,7 @@ Following this strategy, we can have three different results:
 
 ![Siulation Score Mean](fig/figure_3.png){#id .class width=99% height=99%}
 
-In this above example, we enter the trade at 146 when the ask is 146.15 and bid sits at 146. After 5000ms($t_m$), our order at $b_1$ has not been executed, we then lift it to 146.5 which is one tick higher than the original price. However, we didn't get filled after $t_m$ so we cross the spread and take the price at $a_1$. 
+In this example, we enter the trade at 146 when the ask is 146.15 and bid sits at 146. After 5000ms($t_m$), our order at $b_1$ has not been executed, we then lift it to 146.5 which is one tick higher than the original price. However, we didn't get filled after $t_m$ so we cross the spread and take the price at $a_1$. 
 
 # Stage 3 - Optimization Results
 
