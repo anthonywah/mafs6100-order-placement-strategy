@@ -10,7 +10,7 @@ geometry: "left=1.1cm,right=1.1cm,top=0.8cm,bottom=2cm"
 
 # Abstract
 
-Order Placement Strategy plays an important role in today's electronic trading. It helps traders to reduce inventory risk, deal with slippage and execution risk. In this paper, we conduct in-depth analysis on the Taiwan stock and ETF market to explore an optimal order placement strategy under the situation when there are more than one ticks between the bid and ask. By analyzing the spread distribution, effect of order replacement, as well as the characteristics and influence of flickering quotes, we demonstrated that ....
+Order Placement Strategy plays an important role in today's electronic trading. It helps traders to reduce inventory risk, deal with slippage and execution risk. In this paper, we conduct in-depth analysis on the Taiwan stock and ETF market to explore an optimal order placement strategy under the situation when there are more than one ticks between the bid and ask. By analyzing the spread distribution, effect of order replacement, as well as the characteristics and influence of flickering quotes, we demonstrated that an order replacement strategy we proposed can help to reduce the price risk as well as inventory risk. Moreover, even though the flickering quotes in Taiwan market can serve as a prediction signal, the effect is not strong enough to improve our order replacement strategy at least in the Taiwan market.  
 
 # Stage 1 - Data Exploration
 
@@ -22,7 +22,7 @@ As shown in the graph, the bid-ask spreads of ETF 0050 are around 75% in 1- tick
 
 ![Spread profile](fig/figure_2.png){#id .class width=39% height=39%}
 
-From the spread profile of 0050, we can observe that in the first 5 minutes of market open, the spread tends to be significantly larger than the ones in other period of a day. We believe it is due to the active trading activity at market open since many traders are using some ETF tracking or arbitrage strategies. Since there are more pricing and flows during the first minutes of market open, spread may occurs in this perid and there are more chances for us to utilize it with our proposed order placement strategy.
+From the spread profile of 0050, we can observe that in the first 5 minutes after market open, the spread tends to be statistically larger than the ones in other period of a day. We believe it is due to the active trading activity at market open since many traders are using some ETF tracking or arbitrage strategies. Since there are more pricing and flows during the first minutes of market open, spread may occurs in this period and there are more chances for us to utilize it with our proposed order placement strategy.
 
 # Stage 2 - Order Replacement Strategy 
 
@@ -30,13 +30,13 @@ Under the condition when there are more the one tick in the bid-ask spread, we a
 
 - When observing a two-ticks scenario, we first put our order at price bid 1 which we denote as $b_1$.
 
-- Meanwhile, we define $t_\star$ as the maximum time we want to wait until the order gets hit or we cross the spread to buy at the ask price 1 which denoted as $a_1$. Besides, we define $t_m$ as the mid time when we decide to replace our bid order to the mid quote $b_\star$ expecting the $a_1$ will comes down so that we can benefit our pnl from the price movement. 
+- Meanwhile, we define $t_\star$ as the maximum time we want to wait until the order gets hit, otherwise we cross the spread to buy at the ask price 1 which denoted as $a_1$. Besides, we define $t_m$ as the time when we decide to replace our bid order to the mid quote $b_\star$ expecting the $a_1$ will comes down so that we can benefit our pnl from the price movement. 
 
 Following this strategy, we can have three different results:
 
 - If the price comes down $b_1$ before $t_m$, our order got filled at at $b_1$ before $t_m$
 - If our order is not traded before $t_m$, we replaced order at $b_1$ with $b_\star$ at $t_m$, if the $a_1$ move down to $b_\star$ or a large market trade happens at $t_m$ < t < $t_{start}$, we got filled at $b_\star$ 
-- After Replacing the order at $b_1$ with $b_\star$ at $t_m$, we waited til $t_\star$ and no people hit our price, we then cross the spread, fill at $a_1$
+- After Replacing the order at $b_1$ with $b_\star$ at $t_m$, we waited til $t_\star$ but no people hit our price, we then cross the spread, fill at $a_1$
 
 ![Siulation Score Mean](fig/figure_3.png){#id .class width=99% height=99%}
 
@@ -52,16 +52,16 @@ With the score and our order placement strategy, we managed to tune the paramete
 
 From the heatmap of score mean under different setting of $t_\star$ and $t_m$, we can observe that the score is improved with the increasing of  $t_\star$ and decreasing of $t_m$. To be specific, the optimal point among these settings is {$t_\star = 20, t_m = 1$} which means our maximum waiting duration would be 20 seconds and the replacement time is 1 seconds. With this setting, we try to replace our orders as soon as possible and keep waiting as long as we can. It is an quite interesting result since $t_m$ and $t_\star$ play quite different roles in our strategy. 
 
-- A smaller $t_m$ allows us to replace our order earlier so that we aviod the risk that the price just goes against our expectation. For example, when we place a bid order but the price just hikes. In this case we will suffer from the difference between the final execution price and orginal mid quotes. In addition to reducing the price risk, with a smaller $t_m$, we are more likely to get executed earlier since our order becomes the first one in queue after replacement. 
+- A smaller $t_m$ allows us to replace our order earlier so that we avoid the risk that the price just goes against our expectation. For example, when we place a bid order but the price just hikes. In this case we will suffer from the difference between the final execution price and original mid quotes. In addition to reducing the price risk, with a smaller $t_m$, we are more likely to get executed earlier since our order becomes the first one in queue after replacement. 
 
-- A longer $t_\star$, however, allows us to wait in this duration until the price comes back to our favor. Based on our strategy, we tend to cross the spread and trade with $a_1$ after $t_\star$. In other words, we will use an aggressive order and tolerate some price risk in order to get executed after $t_star$. Therefore, when the price is keep bouncing up and down, a longer $t_\star$ allows us to wait until the price comes down(for bid). However, as observed from the standard deviation heatmap, a longer $t_\star$ also increase our risk since the price may just hike up and hurt our PnL.
+- A longer $t_\star$, however, allows us to wait in this duration until the price comes back to our favor. Based on our strategy, we tend to cross the spread and trade with $a_1$ after $t_\star$. In other words, we will use an aggressive order and tolerate some price risk in order to get executed after $t_star$. Therefore, when the price is keep bouncing up and down, a longer $t_\star$ allows us to wait until the price comes down(for bid). However, as observed from the standard deviation heatmap, a longer $t_\star$ also increase our risk since sometimes the price may just hike up and hurt our PnL.
 
-Therefore, a combination of smaller $t_m$ and longer $t_\star$ become the optimal parameter setting. 
+Therefore, a combination of a smaller $t_m$ and a longer $t_\star$ become the optimal parameter setting. 
 
 
 # Stage 4 - Characteristics and Influence of Flickering Quotes
 
-After exploring the best setting of our proposed order placement strategy, we studied the flickering quotes and tried to improve our strategy with them. In today's electronic market, some traders use flickering quotes to benefit his or her PnL. In this report, we define a flicker quote as the quote that appear in the market in a very short period. For example, when there is a two-ticks spread in the market, a bid-side flickering quote may appear at the mid-quote and sit there within 200 milliseconds and get canceled. In this case, some other traders may be fooled to believe the price will goes up and submit a market order or limit order with higher bid - price, which favors the flickering-quotes makers. However, flickering quotes may be used in different strategies for different purposes and may have difference influence in different market. 
+After exploring the best setting of our proposed order placement strategy, we studied the flickering quotes and tried to improve our strategy with them. In today's electronic market, some traders use flickering quotes to benefit his or her PnL. In this report, we define a flickering quote as the quote that appears in the market in a very short period. For example, when there is a two-ticks spread in the market, a bid-side flickering quote may appear at the mid-quote and sit there within 200 milliseconds and get canceled. In this case, some other traders may be fooled to believe the price will goes up and submit a market order or limit order with higher bid - price, which favors the flickering-quotes makers. However, flickering quotes may be used in different strategies for different purposes and may have difference influence in different market. 
 
 ![Bid / Ask duration distribution](fig/figure_6.png){#id .class width=99% height=99%}
 
@@ -73,7 +73,7 @@ In order the investigate the influence of flickering quotes, we conduct the foll
 
 - First we filter all the flickering quotes of the market data. 
 
-- After each flickering quote, since the price comes back to the original level, we use the mid quote at the end of flickering quotes as the benchmark $m_1$, then we check the mid_quotes after certain periods like 5, 10 ,or 20 seconds. The difference between the benchmark mid quotes $m_1$ and mid_quotes after decay $m_{decay}$ can be used as the influence of the flickering quote. 
+- After each flickering quote, since the price comes back to the original level, we use the mid quote at the end of flickering quotes as the benchmark $m_1$, then we check the mid_quotes after certain periods like 5, 10 ,or 20 seconds. The difference between the benchmark mid quotes $m_1$ and mid_quotes after some time decay $m_{decay}$ can be used as the influence of the flickering quote. 
 
 ![Influence of Bid / Ask flicerking quotes](fig/figure_7.png){#id .class width=99% height=99%}
 
@@ -113,9 +113,10 @@ We can interpret the amendment on strategy as taking risk on 2 aspects based on 
 
 Although we observed some INITFFO cases, overall cases of INITFFO + INIT didn't show a significant improvement. It is concluded from the simulations that the improvement in PnL, due to more INIT / INITFFO / REP cases, is not sufficient to compensate the drop in PnL, due to more TAKE cases. A potential improvement on the signalling of flickering quote would be adjusting parameter $n$. For example, only cancel the order / choose to wait when more number of near- / far-touch flickering quotes are observed.
 
-
-
 # Conclusion
+
+
+
 
 # Reference
 
