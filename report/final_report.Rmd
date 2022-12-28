@@ -115,10 +115,9 @@ Although we observed some INITFFO cases, overall cases of INITFFO + INIT didn't 
 
 # Conclusion
 
+This report presents and analyze some statistic features of the bid-ask spread in Taiwan stock and ETF market. Based on the characteristics of bid-ask spread, we proposed an order replacement strategy and search an optimal parameters setting for it. According to the result, we conclude that a combination of a smaller $t_m$ and a longer $t_\star$ outperform others because it allows us to replace our order at a earlier time to get execution priority thus reduce the risk. Besides, it also allows us to wait longer until the price comes back to our favor. In addition to the initial order replacement strategy, we also dig into the characteristics of flickering quotes and use them as a predictive signals to improve our strategy. However, the effects are not strong enough to have any significant improvement on our strategy. For further improvement, we believe that the strategy can be better improved if combined with the flickering quotes in a dynamic way. For example, we adjust the parameters of our strategy given different market scenarios such as the size of bid-ask spread, the volume of bid 1 or ask 1 etc. We are willing to spare more effort on related research in our future career.
 
+# Acknowledgement
 
-
-# Reference
-
-
+This group assignment is completed by Anthony Wah and George Chen. We would like to express our sincere appreciation to Professor Chou for his guidance and patient help.
 
